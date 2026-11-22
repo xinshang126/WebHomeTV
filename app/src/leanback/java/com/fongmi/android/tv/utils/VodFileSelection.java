@@ -27,7 +27,7 @@ public final class VodFileSelection {
             Arrays.sort(files, Comparator.comparing(File::isDirectory).reversed()
                     .thenComparing(File::getName, String.CASE_INSENSITIVE_ORDER));
             return Arrays.asList(files);
-        } catch (SecurityException denied) {
+        } catch (RuntimeException denied) {
             return null;
         }
     }

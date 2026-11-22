@@ -18,6 +18,7 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.ViewHolder> {
     private final OnClickListener mListener;
     private final List<File> mItems;
     private boolean selectDir;
+    private boolean enabled = true;
     private File dir;
 
     public FileAdapter(OnClickListener listener) {
@@ -37,6 +38,12 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.ViewHolder> {
         addAll(null, items, false);
     }
 
+    public void setEnabled(boolean enabled) {
+        if (this.enabled == enabled) return;
+        this.enabled = enabled;
+        notifyDataSetChanged();
+    }
+
     @Override
     public int getItemCount() {
         return mItems.size() + (selectDir ? 1 : 0);
@@ -53,13 +60,19 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.ViewHolder> {
         if (selectDir && position == 0) {
             holder.binding.name.setText(R.string.file_select_current_dir);
             holder.binding.image.setImageResource(R.drawable.ic_folder);
-            holder.binding.getRoot().setOnClickListener(v -> mListener.onCurrentDirClick(dir));
+            bindEnabled(holder, () -> mListener.onCurrentDirClick(dir));
             return;
         }
         File file = mItems.get(selectDir ? position - 1 : position);
         holder.binding.name.setText(file.getName());
         holder.binding.image.setImageResource(file.isDirectory() ? R.drawable.ic_folder : R.drawable.ic_file);
-        holder.binding.getRoot().setOnClickListener(v -> mListener.onItemClick(file));
+        bindEnabled(holder, () -> mListener.onItemClick(file));
+    }
+
+    private void bindEnabled(ViewHolder holder, Runnable action) {
+        holder.binding.getRoot().setEnabled(enabled);
+        holder.binding.getRoot().setAlpha(enabled ? 1f : 0.55f);
+        holder.binding.getRoot().setOnClickListener(enabled ? v -> action.run() : null);
     }
 
     public interface OnClickListener {

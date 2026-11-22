@@ -27,8 +27,12 @@ public class VodFileSelectionTest {
         File denied = new File(temp.getRoot(), "denied") {
             @Override public File[] listFiles(FileFilter filter) { return null; }
         };
+        File broken = new File(temp.getRoot(), "broken") {
+            @Override public File[] listFiles(FileFilter filter) { throw new IllegalStateException("storage offline"); }
+        };
         assertEquals(List.of(), VodFileSelection.list(temp.newFolder("empty")));
         assertNull(VodFileSelection.list(denied));
+        assertNull(VodFileSelection.list(broken));
     }
 
     @Test public void leavesTheOriginalFolderForRelativeCompanionFiles() {

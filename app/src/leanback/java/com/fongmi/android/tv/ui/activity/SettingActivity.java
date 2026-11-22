@@ -4,8 +4,10 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.ViewTreeObserver;
 
 import androidx.viewbinding.ViewBinding;
 
@@ -42,6 +44,7 @@ import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.bean.Doh;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.net.OkHttp;
 import com.github.catvod.utils.Path;
 
@@ -54,12 +57,14 @@ import java.util.List;
 
 public class SettingActivity extends BaseActivity implements ConfigListener, SiteListener, LiveListener, DohDialog.Listener {
 
+    private static final String EXTRA_OPEN_REQUEST = "jktv_setting_open_request";
     private ActivitySettingBinding mBinding;
     private String[] size;
     private String[] language;
 
     public static void start(Activity activity) {
-        activity.startActivity(new Intent(activity, SettingActivity.class));
+        activity.startActivity(new Intent(activity, SettingActivity.class)
+                .putExtra(EXTRA_OPEN_REQUEST, SystemClock.elapsedRealtime()));
     }
 
     private String getSwitch(boolean value) {
@@ -84,19 +89,43 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     @Override
     protected void initView(Bundle savedInstanceState) {
         mBinding.vod.requestFocus();
+        language = ResUtil.getStringArray(R.array.select_language);
+        size = ResUtil.getStringArray(R.array.select_size);
+        long requested = getIntent().getLongExtra(EXTRA_OPEN_REQUEST, 0);
+        if (requested > 0) SpiderDebug.log("setting", "screen created dispatch=%dms",
+                SystemClock.elapsedRealtime() - requested);
+        runAfterFirstFrame(this::populateSummaries);
+    }
+
+    private void populateSummaries() {
+        if (isFinishing() || isDestroyed()) return;
+        long start = SystemClock.elapsedRealtime();
         mBinding.vodUrl.setText(VodConfig.getDesc());
         mBinding.liveUrl.setText(LiveConfig.getDesc());
         setWallText();
         mBinding.versionText.setText(AppVersion.fullName());
         setCacheText();
         setOtherText();
+        SpiderDebug.log("setting", "summaries ready cost=%dms", SystemClock.elapsedRealtime() - start);
+    }
+
+    private void runAfterFirstFrame(Runnable action) {
+        View root = mBinding.getRoot();
+        root.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                if (root.getViewTreeObserver().isAlive()) root.getViewTreeObserver().removeOnPreDrawListener(this);
+                root.post(action);
+                return true;
+            }
+        });
     }
 
     private void setOtherText() {
         mBinding.dohText.setText(getDohList()[getDohIndex()]);
         mBinding.incognitoText.setText(getSwitch(Setting.isIncognito()));
-        mBinding.languageText.setText((language = ResUtil.getStringArray(R.array.select_language))[Setting.getLanguageIndex()]);
-        mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[PlayerSetting.getSize()]);
+        mBinding.languageText.setText(language[Setting.getLanguageIndex()]);
+        mBinding.sizeText.setText(size[PlayerSetting.getSize()]);
     }
 
     private void setCacheText() {

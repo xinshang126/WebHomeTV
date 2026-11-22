@@ -24,6 +24,7 @@ import com.fongmi.android.tv.utils.DanmakuSearchListFocusFixer;
 import com.fongmi.android.tv.utils.NsdDeviceDiscovery;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PreviousProcessExitLogger;
+import com.fongmi.android.tv.utils.Task;
 import com.fongmi.android.tv.utils.Util;
 import com.fongmi.hook.Hook;
 import com.github.catvod.crawler.DebugLogStore;
@@ -126,14 +127,27 @@ public class App extends Application implements Application.ActivityLifecycleCal
     }
 
     private void startBackgroundServices() {
-        SpiderDebug.log("startup", "background services start cost=%sms", System.currentTimeMillis() - time);
-        Server.get().start();
+        SpiderDebug.log("startup", "background services queued cost=%sms", System.currentTimeMillis() - time);
         if (!Util.isLeanback()) {
+            long start = System.currentTimeMillis();
+            Server.get().start();
             PlaybackRemoteSyncer.start();
             RemoteAgent.get().start();
+            NsdDeviceDiscovery.register();
+            SpiderDebug.log("startup", "background services ready wait=%sms run=%sms",
+                    start - time, System.currentTimeMillis() - start);
+            return;
         }
-        NsdDeviceDiscovery.register();
-        SpiderDebug.log("startup", "background services ready cost=%sms", System.currentTimeMillis() - time);
+        Task.execute(() -> {
+            long start = System.currentTimeMillis();
+            Server.get().start();
+            long serverReady = System.currentTimeMillis();
+            App.post(() -> {
+                NsdDeviceDiscovery.register();
+                SpiderDebug.log("startup", "background services ready wait=%sms server=%sms finish=%sms",
+                        start - time, serverReady - start, System.currentTimeMillis() - serverReady);
+            });
+        });
     }
 
     @Override

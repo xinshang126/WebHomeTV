@@ -24,6 +24,7 @@ import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.VodFileSelection;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Path;
 
 import java.io.File;
@@ -36,6 +37,7 @@ import java.util.concurrent.Executors;
 public class FileActivity extends BaseActivity implements FileAdapter.OnClickListener {
 
     public static final String EXTRA_VOD_CONFIG = "select_jktv_vod_config";
+    private static final long DIRECTORY_WARNING_MS = 5000;
 
     private ActivityFileBinding mBinding;
     private FileAdapter mAdapter;
@@ -44,6 +46,8 @@ public class FileActivity extends BaseActivity implements FileAdapter.OnClickLis
     private boolean selectConfig;
     private ExecutorService directoryWorker;
     private int navigationVersion;
+    private int loadingNavigation;
+    private long navigationStartedAt;
 
     private final ActivityResultLauncher<Intent> systemFiles = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -182,6 +186,8 @@ public class FileActivity extends BaseActivity implements FileAdapter.OnClickLis
         boolean moveFocus = dir == null || mBinding.recycler.hasFocus();
         dir = target;
         int version = ++navigationVersion;
+        loadingNavigation = version;
+        navigationStartedAt = android.os.SystemClock.elapsedRealtime();
         mBinding.configUp.setEnabled(!isRoot());
         mBinding.configStatus.setText(getString(R.string.jktv_picker_loading, target.getAbsolutePath()));
         mBinding.configAccess.setVisibility(Setting.hasFileAccess() ? View.GONE : View.VISIBLE);
@@ -189,20 +195,39 @@ public class FileActivity extends BaseActivity implements FileAdapter.OnClickLis
             if (isRoot()) mBinding.configSystem.requestFocus();
             else mBinding.configUp.requestFocus();
         }
-        mAdapter.addAll(dir, List.of(), false);
+        // Keep the previous rows visible while storage is being enumerated. Clearing
+        // them here made a slow or disconnected folder look like a black screen.
+        mAdapter.setEnabled(false);
         mBinding.progressLayout.showContent();
+        SpiderDebug.log("picker", "folder open id=%s nav=%d", folderId(target), version);
+        App.post(() -> warnIfDirectorySlow(target, version), DIRECTORY_WARNING_MS);
         directoryWorker.execute(() -> {
             List<File> entries = VodFileSelection.list(target);
             App.post(() -> {
                 if (VodFileSelection.currentNavigation(version, navigationVersion, isFinishing() || isDestroyed())) {
-                    renderConfigEntries(target, entries, moveFocus);
+                    renderConfigEntries(target, entries, moveFocus, version);
                 }
             });
         });
     }
 
-    private void renderConfigEntries(File target, List<File> entries, boolean moveFocus) {
+    private void warnIfDirectorySlow(File target, int version) {
+        if (version != navigationVersion || loadingNavigation != version || isFinishing() || isDestroyed()) return;
+        long cost = android.os.SystemClock.elapsedRealtime() - navigationStartedAt;
+        SpiderDebug.log("picker", "folder slow id=%s nav=%d cost=%dms", folderId(target), version, cost);
+        mBinding.configStatus.setText(R.string.jktv_picker_folder_unreadable);
+        if (!isRoot()) mBinding.configUp.requestFocus();
+    }
+
+    private void renderConfigEntries(File target, List<File> entries, boolean moveFocus, int version) {
+        if (loadingNavigation != version) return;
+        loadingNavigation = 0;
+        long cost = android.os.SystemClock.elapsedRealtime() - navigationStartedAt;
+        SpiderDebug.log("picker", "folder result id=%s nav=%d cost=%dms state=%s count=%d",
+                folderId(target), version, cost, entries == null ? "unreadable" : "ok",
+                entries == null ? 0 : entries.size());
         mAdapter.addAll(target, entries == null ? List.of() : entries, false);
+        mAdapter.setEnabled(entries != null && !entries.isEmpty());
         if (entries == null) {
             mBinding.configStatus.setText(R.string.jktv_picker_folder_unreadable);
         } else if (entries.isEmpty()) {
@@ -216,6 +241,10 @@ public class FileActivity extends BaseActivity implements FileAdapter.OnClickLis
         }
     }
 
+    private String folderId(File target) {
+        return Integer.toHexString(target.getAbsolutePath().hashCode());
+    }
+
     private List<File> list(File dir) {
         if (!selectDir) return Path.list(dir);
         File[] files = dir.listFiles(File::isDirectory);
@@ -227,6 +256,7 @@ public class FileActivity extends BaseActivity implements FileAdapter.OnClickLis
     @Override
     protected void onDestroy() {
         ++navigationVersion;
+        loadingNavigation = 0;
         if (directoryWorker != null) directoryWorker.shutdownNow();
         super.onDestroy();
     }

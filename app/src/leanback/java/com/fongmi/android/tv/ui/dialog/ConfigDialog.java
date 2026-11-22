@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -33,7 +34,9 @@ import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.QRCode;
 import com.fongmi.android.tv.utils.ResUtil;
+import com.fongmi.android.tv.utils.Task;
 import com.fongmi.android.tv.utils.VodFileSelection;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Path;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -106,8 +109,26 @@ public class ConfigDialog extends BaseAlertDialog {
         binding.text.setText(url = config.getUrl());
         binding.text.setSelection(TextUtils.isEmpty(url) ? 0 : url.length());
         binding.positive.setText(edit ? R.string.dialog_edit : R.string.dialog_positive);
-        binding.code.setImageBitmap(QRCode.getLightBitmap(Server.get().getAddress(4), 200, 0));
-        binding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()).replace("\uff0c", "\n"));
+        loadServerInfo();
+    }
+
+    private void loadServerInfo() {
+        long start = SystemClock.elapsedRealtime();
+        Task.execute(() -> {
+            String qrAddress = Server.get().getAddress(4);
+            String serverAddress = Server.get().getAddress();
+            android.graphics.Bitmap code = QRCode.getLightBitmap(qrAddress, 200, 0);
+            App.post(() -> {
+                if (!isAdded() || binding == null) {
+                    if (code != null) code.recycle();
+                    return;
+                }
+                binding.code.setImageBitmap(code);
+                binding.info.setText(ResUtil.getString(R.string.push_info, serverAddress).replace("\uff0c", "\n"));
+                SpiderDebug.log("setting", "config dialog server info ready cost=%dms",
+                        SystemClock.elapsedRealtime() - start);
+            });
+        });
     }
 
     @Override
@@ -248,6 +269,12 @@ public class ConfigDialog extends BaseAlertDialog {
     public void onStop() {
         super.onStop();
         EventBus.getDefault().unregister(this);
+    }
+
+    @Override
+    public void onDestroyView() {
+        binding = null;
+        super.onDestroyView();
     }
 
     private final ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
