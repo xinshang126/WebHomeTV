@@ -4,9 +4,12 @@ import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.player.PlaybackRouteRegistry;
 import com.fongmi.android.tv.utils.Task;
 import com.github.catvod.Proxy;
+import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Util;
 
 public class Server {
+
+    public static final int PORT = 9978;
 
     private volatile PlaybackService service;
     private volatile Nano nano;
@@ -61,17 +64,16 @@ public class Server {
 
     public synchronized void start() {
         if (nano != null) return;
-        for (int i = 9978; i < 9999; i++) {
-            try {
-                nano = new Nano(i);
-                nano.start(500);
-                Proxy.set(i);
-                if (routeRegistration != null) routeRegistration.close();
-                routeRegistration = PlaybackRouteRegistry.registerAppService(i, PlaybackRouteRegistry.AppOwner.MAIN_SERVER);
-                break;
-            } catch (Throwable e) {
-                nano = null;
-            }
+        try {
+            nano = new Nano(PORT);
+            nano.start(500);
+            Proxy.set(PORT);
+            if (routeRegistration != null) routeRegistration.close();
+            routeRegistration = PlaybackRouteRegistry.registerAppService(PORT, PlaybackRouteRegistry.AppOwner.MAIN_SERVER);
+            SpiderDebug.log("server", "fixed port ready port=%s", PORT);
+        } catch (Throwable e) {
+            nano = null;
+            SpiderDebug.log("server", "fixed port unavailable port=%s error=%s", PORT, e.getClass().getSimpleName());
         }
     }
 

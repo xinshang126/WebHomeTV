@@ -113,6 +113,8 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
     private String webDefaultChromeMode = TV_FULL;
     private boolean webToolbarVisible = true;
     private boolean loadingHomeCategory;
+    private boolean keepWebUntilNativeReady;
+    private int homeSwitchGeneration;
 
     private Site getHome() {
         return VodConfig.get().getHome();
@@ -300,6 +302,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
             }
             mResult = result;
             addVideo(result);
+            if (keepWebUntilNativeReady && !loadingHomeCategory) revealNativeHome();
         });
     }
 
@@ -386,6 +389,8 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
     }
 
     private void getVideo(boolean forceNative) {
+        homeSwitchGeneration++;
+        keepWebUntilNativeReady = false;
         if (!forceNative && getHome().hasHomePage()) {
             ensureWebView();
         }
@@ -396,8 +401,11 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
             showWebOverlay();
             return;
         }
-        if (mWeb != null) mWeb.hide();
-        hideWebOverlay();
+        keepWebUntilNativeReady = mWeb != null && mWeb.isVisible();
+        if (!keepWebUntilNativeReady) {
+            if (mWeb != null) mWeb.hide();
+            hideWebOverlay();
+        }
         applyTvChrome(TV_NORMAL);
         mBinding.recycler.setVisibility(View.VISIBLE);
         mResult = Result.empty();
@@ -406,6 +414,23 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
         clearRecommendRows();
         mAdapter.add("progress");
         mViewModel.homeContent();
+    }
+
+    private void revealNativeHome() {
+        keepWebUntilNativeReady = false;
+        int generation = homeSwitchGeneration;
+        View root = mBinding.getRoot();
+        root.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                if (root.getViewTreeObserver().isAlive()) root.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (generation != homeSwitchGeneration) return true;
+                if (mWeb != null) mWeb.hide();
+                hideWebOverlay();
+                SpiderDebug.log("site-dialog", "native home drawn key=%s", getHome().getKey());
+                return true;
+            }
+        });
     }
 
     private void showWebOverlay() {

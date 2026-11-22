@@ -205,6 +205,7 @@ public class ExoUtil {
                         : frameSchedulingSettings;
         boolean automaticProfile =
                 PlaybackPerformanceSetting.isAuto(PlayerSetting.EXO);
+        boolean simpleAuto = PlaybackPerformanceSetting.isSimpleExoAuto();
         boolean automaticBandwidth = PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.EXO,
                 PlaybackPerformanceCatalog.BANDWIDTH_METER);
@@ -226,14 +227,15 @@ public class ExoUtil {
                 .setMediaSourceFactory(buildMediaSourceFactory(
                         dolbyVisionPlaybackState, assSession))
                 .setVideoChangeFrameRateStrategy(ExoPerformanceSetting.getFrameRateStrategy());
-        if (PlaybackPerformanceSetting.isHighBufferEnabled()) builder.setLoadControl(buildEnhancedLoadControl());
+        if (simpleAuto) builder.setLoadControl(buildSimpleExoLoadControl());
+        else if (PlaybackPerformanceSetting.isHighBufferEnabled()) builder.setLoadControl(buildEnhancedLoadControl());
         else ExoPlaybackDiagnostics.logDefaultLoadControl(PlaybackPerformanceSetting.getProfile(PlayerSetting.EXO));
-        if (PlaybackPerformanceSetting.isBandwidthMeterEnabled()) {
+        if (!simpleAuto && PlaybackPerformanceSetting.isBandwidthMeterEnabled()) {
             builder.setBandwidthMeter(automaticBandwidth
                     ? buildAutomaticBandwidthMeter(App.get())
                     : buildEnhancedBandwidthMeter(App.get()));
         }
-        if (schedulingSettings.dynamicSchedulingEnabled()) {
+        if (!simpleAuto && schedulingSettings.dynamicSchedulingEnabled()) {
             builder.experimentalSetDynamicSchedulingEnabled(true);
         }
         ExoPlayer player = builder.build();
@@ -246,7 +248,7 @@ public class ExoUtil {
             analyticsListener.onVideoFrameAboutToBeRendered(presentationTimeUs, releaseTimeNs, format, mediaFormat);
             assSession.onVideoFrame(format);
         });
-        if (PlaybackPerformanceSetting.isAdaptiveDowngradeEnabled()) {
+        if (!simpleAuto && PlaybackPerformanceSetting.isAdaptiveDowngradeEnabled()) {
             if (PlaybackPerformanceSetting.isAuto(
                     PlayerSetting.EXO,
                     PlaybackPerformanceCatalog.ADAPTIVE_DOWNGRADE)
@@ -572,6 +574,15 @@ public class ExoUtil {
     private static EnhancedVideoProfile logEnhancedVideoProfile(EnhancedVideoProfile profile, DisplayProfile display, CodecVideoProfile codec) {
         if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-enhance", "profile=%dx%d@%d networkBitrate=%d trackLimit=%d display=%dx%d codec=%s codecProfile=%s performancePoint=%s", profile.width(), profile.height(), profile.frameRate(), profile.bitrate(), profile.maxVideoBitrate(), display.width(), display.height(), codec.name(), codec.profileText(), codec.performancePoint());
         return profile;
+    }
+
+    private static LoadControl buildSimpleExoLoadControl() {
+        ExoBufferBudget.Budget budget = getBufferBudget();
+        SpiderDebug.log("exo-simple", "fixed load control min=50000 max=50000 start=1000 rebuffer=2000 targetBytes=%s", budget.effectiveTargetBytes());
+        return new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(50_000, 50_000, 1_000, 2_000)
+                .setTargetBufferBytes(budget.effectiveTargetBytes())
+                .build();
     }
 
     private static LoadControl buildEnhancedLoadControl() {

@@ -139,6 +139,7 @@ public final class ExoPerformanceSetting {
     }
 
     public static int getNetworkProtectionMode() {
+        if (PlaybackPerformanceSetting.isSimpleExoAuto()) return ExoNetworkProtectionPolicy.MODE_OFF;
         int defaultMode = PlaybackPerformanceSetting.isAuto(
                 PlayerSetting.EXO,
                 PlaybackPerformanceCatalog.EXO_NETWORK_PROTECTION)
@@ -151,7 +152,7 @@ public final class ExoPerformanceSetting {
         Prefers.put(KEY_NETWORK_PROTECTION_MODE, mode);
         PlaybackPerformanceSetting.setOverride(
                 PlaybackPerformanceCatalog.EXO_NETWORK_PROTECTION,
-                mode != ExoNetworkProtectionPolicy.MODE_AUTO);
+                true);
     }
 
     public static int nextNetworkProtectionMode() {

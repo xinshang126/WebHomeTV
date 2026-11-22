@@ -251,6 +251,10 @@ public class PlaybackPerformanceSetting {
         return getProfile(kernel) == PROFILE_AUTO;
     }
 
+    public static boolean isSimpleExoAuto() {
+        return isAuto(PlayerSetting.EXO) && getOverrideCount(PlayerSetting.EXO) == 0;
+    }
+
     public static boolean isAuto(String optionId) {
         return isAuto(PlayerSetting.getPlayer(), optionId);
     }

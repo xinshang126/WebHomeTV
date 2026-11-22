@@ -9,3 +9,5 @@
 - 原生 TV 首页使用紧凑上栏、深色背景和常规分类焦点路径。未复制 OK 影视反编译代码或资源；视觉/遥控器体验仍需真机确认。
 
 验收：ARM64 APK 用 aapt 确认包名、Leanback 应用入口和签名；确认没有 `assets/mpv-libs/`，IJK 三个库仍打包。安装时不得覆盖其他播放器。完整构建失败需记录具体工具链、依赖或源代码错误，不能把静态审查当成真机通过。
+
+后续 Exo 自动档的简化候选与电视复测边界见 [jktv-exo-simple-playback.md](jktv-exo-simple-playback.md)。
