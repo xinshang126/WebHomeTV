@@ -18,6 +18,7 @@ def releaseTag = (System.getenv('WEBHTV_RELEASE_TAG') ?: '').replace('\\', '\\\\
 def apkSuffix = (System.getenv('WEBHTV_APK_SUFFIX') ?: '').replaceAll('[^A-Za-z0-9._-]', '')
 def jktvVersionName = System.getenv('JKTV_VERSION_NAME') ?: '1.0'
 def jktvVersionCode = (System.getenv('JKTV_VERSION_CODE') ?: '1000').toInteger()
+def jktvSigningStore = System.getenv('JKTV_DEBUG_KEYSTORE_PATH')
 def gitRevision = 'unavailable'
 def gitState = 'unavailable'
 def mpvSourceLock = new groovy.json.JsonSlurper().parse(rootProject.file('third_party/mpv-native-lock.json'))
@@ -99,6 +100,15 @@ android {
     sourceSets.armeabi_v7a.assets.setSrcDirs([])
 
     signingConfigs {
+        if (jktvSigningStore) {
+            jktvDebug {
+                storeFile = file(jktvSigningStore)
+                storeType = 'PKCS12'
+                keyAlias = 'AndroidDebugKey'
+                keyPassword = 'android'
+                storePassword = 'android'
+            }
+        }
         release {
             if (hasReleaseSigning) {
                 storeFile file(localProps['storeFile'])
@@ -110,6 +120,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (jktvSigningStore) signingConfig = signingConfigs.jktvDebug
+        }
         release {
             minifyEnabled = !fastRelease
             shrinkResources = !fastRelease
