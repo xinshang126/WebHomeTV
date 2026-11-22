@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.KeyEvent;
+import android.util.Log;
 import android.view.ViewTreeObserver;
 
 import androidx.viewbinding.ViewBinding;
@@ -61,6 +63,36 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     private ActivitySettingBinding mBinding;
     private String[] size;
     private String[] language;
+    private long lastSelectKeyAt;
+    private long lastSelectKeyDelay;
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_UP && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
+                || event.getKeyCode() == KeyEvent.KEYCODE_ENTER || event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            lastSelectKeyAt = SystemClock.uptimeMillis();
+            lastSelectKeyDelay = Math.max(0, lastSelectKeyAt - event.getEventTime());
+            trace("input dispatch delay=" + lastSelectKeyDelay + "ms");
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    private void traceClick(String target, Runnable action) {
+        long start = SystemClock.uptimeMillis();
+        long inputDelay = start - lastSelectKeyAt < 1000 ? lastSelectKeyDelay : -1;
+        trace("click start target=" + target + " inputDelay=" + inputDelay + "ms");
+        try {
+            action.run();
+        } finally {
+            trace("click return target=" + target + " handler="
+                    + (SystemClock.uptimeMillis() - start) + "ms");
+        }
+    }
+
+    private void trace(String message) {
+        Log.i("JKTVSetting", message);
+        SpiderDebug.log("setting", "%s", message);
+    }
 
     public static void start(Activity activity) {
         activity.startActivity(new Intent(activity, SettingActivity.class)
@@ -139,29 +171,29 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     @Override
     protected void initEvent() {
-        mBinding.vod.setOnClickListener(this::onVod);
-        mBinding.doh.setOnClickListener(this::setDoh);
-        mBinding.live.setOnClickListener(this::onLive);
-        mBinding.wall.setOnClickListener(this::onWall);
-        mBinding.size.setOnClickListener(this::setSize);
-        mBinding.language.setOnClickListener(this::setLanguage);
-        mBinding.cache.setOnClickListener(this::onCache);
-        mBinding.backup.setOnClickListener(this::onBackup);
-        mBinding.enhance.setOnClickListener(this::onEnhance);
-        mBinding.player.setOnClickListener(this::onPlayer);
-        mBinding.danmaku.setOnClickListener(this::onDanmaku);
-        mBinding.restore.setOnClickListener(this::onRestore);
-        mBinding.version.setOnClickListener(this::onVersion);
+        mBinding.vod.setOnClickListener(v -> traceClick("vod", () -> onVod(v)));
+        mBinding.doh.setOnClickListener(v -> traceClick("doh", () -> setDoh(v)));
+        mBinding.live.setOnClickListener(v -> traceClick("live", () -> onLive(v)));
+        mBinding.wall.setOnClickListener(v -> traceClick("wall", () -> onWall(v)));
+        mBinding.size.setOnClickListener(v -> traceClick("size", () -> setSize(v)));
+        mBinding.language.setOnClickListener(v -> traceClick("language", () -> setLanguage(v)));
+        mBinding.cache.setOnClickListener(v -> traceClick("cache", () -> onCache(v)));
+        mBinding.backup.setOnClickListener(v -> traceClick("backup", () -> onBackup(v)));
+        mBinding.enhance.setOnClickListener(v -> traceClick("enhance", () -> onEnhance(v)));
+        mBinding.player.setOnClickListener(v -> traceClick("player", () -> onPlayer(v)));
+        mBinding.danmaku.setOnClickListener(v -> traceClick("danmaku", () -> onDanmaku(v)));
+        mBinding.restore.setOnClickListener(v -> traceClick("restore", () -> onRestore(v)));
+        mBinding.version.setOnClickListener(v -> traceClick("version", () -> onVersion(v)));
         mBinding.vod.setOnLongClickListener(this::onVodEdit);
-        mBinding.vodHome.setOnClickListener(this::onVodHome);
+        mBinding.vodHome.setOnClickListener(v -> traceClick("vodHome", () -> onVodHome(v)));
         mBinding.live.setOnLongClickListener(this::onLiveEdit);
-        mBinding.liveHome.setOnClickListener(this::onLiveHome);
+        mBinding.liveHome.setOnClickListener(v -> traceClick("liveHome", () -> onLiveHome(v)));
         mBinding.wall.setOnLongClickListener(this::onWallEdit);
-        mBinding.incognito.setOnClickListener(this::setIncognito);
-        mBinding.vodHistory.setOnClickListener(this::onVodHistory);
-        mBinding.liveHistory.setOnClickListener(this::onLiveHistory);
-        mBinding.wallDefault.setOnClickListener(this::setWallDefault);
-        mBinding.wallRefresh.setOnClickListener(this::setWallRefresh);
+        mBinding.incognito.setOnClickListener(v -> traceClick("incognito", () -> setIncognito(v)));
+        mBinding.vodHistory.setOnClickListener(v -> traceClick("vodHistory", () -> onVodHistory(v)));
+        mBinding.liveHistory.setOnClickListener(v -> traceClick("liveHistory", () -> onLiveHistory(v)));
+        mBinding.wallDefault.setOnClickListener(v -> traceClick("wallDefault", () -> setWallDefault(v)));
+        mBinding.wallRefresh.setOnClickListener(v -> traceClick("wallRefresh", () -> setWallRefresh(v)));
         mBinding.wallRefresh.setOnLongClickListener(this::onWallHistory);
     }
 
