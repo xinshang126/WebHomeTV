@@ -66,6 +66,7 @@ jobs:
           apk="${candidates[0]}"
           tools="$ANDROID_HOME/build-tools/37.0.0"
           "$tools/apksigner" verify --verbose --print-certs "$apk" > jktv-signature.txt
+          cat jktv-signature.txt
           grep -qi '63c5ad799dd41d872ff84865f2b99a41fb576609bd389ed2b927387d7d3a1dc1' jktv-signature.txt
           "$tools/aapt" dump badging "$apk" > jktv-badging.txt
           grep -q "^package: name='com.jktv.player' versionCode='${JKTV_VERSION_CODE}' versionName='${JKTV_VERSION_NAME}'" jktv-badging.txt
