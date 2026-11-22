@@ -17,6 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Set JKTV build version
+        shell: bash
+        run: |
+          set -euo pipefail
+          minor=$((GITHUB_RUN_NUMBER - 6))
+          test "$minor" -ge 0
+          echo "JKTV_VERSION_NAME=1.${minor}" >> "$GITHUB_ENV"
+          echo "JKTV_VERSION_CODE=$((1000 + minor))" >> "$GITHUB_ENV"
+          echo "JKTV_APK_BASENAME=JKTV-1.${minor}-leanback-arm64-debug" >> "$GITHUB_ENV"
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           persist-credentials: false
@@ -43,7 +52,7 @@ jobs:
           tools="$ANDROID_HOME/build-tools/37.0.0"
           "$tools/apksigner" verify --verbose "$apk"
           "$tools/aapt" dump badging "$apk" > jktv-badging.txt
-          grep -q "^package: name='com.jktv.player' " jktv-badging.txt
+          grep -q "^package: name='com.jktv.player' versionCode='${JKTV_VERSION_CODE}' versionName='${JKTV_VERSION_NAME}'" jktv-badging.txt
           grep -q "^leanback-launchable-activity:" jktv-badging.txt
           grep -q "^native-code: 'arm64-v8a'" jktv-badging.txt
           python3 - "$apk" <<'PY'
@@ -56,12 +65,12 @@ jobs:
               assert f'lib/arm64-v8a/{lib}' in entries, lib
           PY
           mkdir -p dist
-          cp "$apk" dist/JKTV-leanback-arm64-debug.apk
+          cp "$apk" "dist/${JKTV_APK_BASENAME}.apk"
           cp jktv-badging.txt dist/
-          (cd dist && sha256sum JKTV-leanback-arm64-debug.apk > SHA256SUMS)
+          (cd dist && sha256sum "${JKTV_APK_BASENAME}.apk" > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: JKTV-leanback-arm64-debug
+          name: ${{ env.JKTV_APK_BASENAME }}
           path: dist/
           if-no-files-found: error
           retention-days: 14
