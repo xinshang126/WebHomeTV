@@ -87,15 +87,15 @@ public final class PreviousProcessExitLogger {
             boolean nativeCrash = exit.getReason() == ApplicationExitInfo.REASON_CRASH_NATIVE;
             DebugLogStore.event(event().observed("traceAvailable", true).observed("bytes", bytes.size())
                     .observed("format", anr ? "anr-text-prefix"
-                            : nativeCrash ? "native-tombstone-protobuf-base64-prefix" : "platform-trace-not-exported")
+                            : nativeCrash ? "native-tombstone-protobuf-base64url-prefix" : "platform-trace-not-exported")
                     .observed("truncated", bytes.size() == limit));
             if (anr || nativeCrash) {
                 String trace = anr ? new String(bytes.toByteArray(), StandardCharsets.UTF_8)
-                        : Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP);
+                        : Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP | Base64.URL_SAFE | Base64.NO_PADDING);
                 int chunks = (trace.length() + 999) / 1000;
                 for (int i = 0; i < chunks; i++) {
                     DebugLogStore.event(event().observed("chunk", i).observed("chunkCount", chunks)
-                            .observed("encoding", anr ? "utf-8" : "base64")
+                            .observed("encoding", anr ? "utf-8" : "base64url")
                             .message(trace.substring(i * 1000, Math.min(trace.length(), (i + 1) * 1000))));
                 }
             }
