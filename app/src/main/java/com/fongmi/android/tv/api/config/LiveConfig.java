@@ -16,7 +16,6 @@ import com.fongmi.android.tv.bean.Rule;
 import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.impl.Callback;
-import com.fongmi.android.tv.setting.CustomCspSetting;
 import com.fongmi.android.tv.setting.LiveSetting;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.github.catvod.bean.Header;
@@ -177,7 +176,6 @@ public class LiveConfig extends BaseConfig {
     }
 
     private void parseConfig(Config config, JsonObject object) {
-        CustomCspSetting.inject(object);
         initList(object);
         initLive(config, object);
     }
@@ -202,7 +200,6 @@ public class LiveConfig extends BaseConfig {
     }
 
     private void finishLive(Config config, String spider) {
-        CustomCspSetting.inject(getLives(), spider);
         getLives().removeIf(Live::isEmpty);
         Map<String, Live> items = Live.findAll().stream().collect(Collectors.toMap(Live::getName, Function.identity()));
         getLives().forEach(live -> live.sync(items.get(live.getName())));

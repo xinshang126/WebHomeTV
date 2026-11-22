@@ -414,7 +414,7 @@ public class Site implements Parcelable {
     }
 
     public boolean hasHomePage() {
-        return !getHomePage().isEmpty();
+        return false; // Use the ordinary native site home.
     }
 
     public boolean isEmpty() {

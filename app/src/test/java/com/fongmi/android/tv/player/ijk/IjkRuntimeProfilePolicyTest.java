@@ -259,7 +259,7 @@ public class IjkRuntimeProfilePolicyTest {
     }
 
     @Test
-    public void fallbackOrderUsesVerifiedPathThenSoftMpvAndExo() {
+    public void fallbackOrderUsesVerifiedPathThenSoftAndExo() {
         assertEquals(IjkRuntimeProfilePolicy.Path.EXO,
                 IjkRuntimeProfilePolicy.nextFallback(
                         IjkRuntimeProfilePolicy.Path.IJK_HARD,
@@ -272,12 +272,18 @@ public class IjkRuntimeProfilePolicyTest {
                         EnumSet.of(IjkRuntimeProfilePolicy.Path.IJK_HARD),
                         true,
                         null));
-        assertEquals(IjkRuntimeProfilePolicy.Path.MPV,
+        assertEquals(IjkRuntimeProfilePolicy.Path.EXO,
                 IjkRuntimeProfilePolicy.nextFallback(
                         IjkRuntimeProfilePolicy.Path.IJK_HARD,
                         EnumSet.of(IjkRuntimeProfilePolicy.Path.IJK_HARD),
                         false,
                         null));
+        assertEquals(IjkRuntimeProfilePolicy.Path.IJK_SOFT,
+                IjkRuntimeProfilePolicy.nextFallback(
+                        IjkRuntimeProfilePolicy.Path.IJK_HARD,
+                        EnumSet.of(IjkRuntimeProfilePolicy.Path.IJK_HARD),
+                        true,
+                        IjkRuntimeProfilePolicy.Path.MPV));
         assertEquals(IjkRuntimeProfilePolicy.Path.EXO,
                 IjkRuntimeProfilePolicy.nextFallback(
                         IjkRuntimeProfilePolicy.Path.MPV,

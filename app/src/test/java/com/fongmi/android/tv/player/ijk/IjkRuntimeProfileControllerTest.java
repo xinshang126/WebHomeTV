@@ -118,7 +118,7 @@ public class IjkRuntimeProfileControllerTest {
                 EPOCH);
 
         assertTrue(decision.requestsSwitch());
-        assertEquals(IjkRuntimeProfilePolicy.Path.MPV, decision.targetPath());
+        assertEquals(IjkRuntimeProfilePolicy.Path.EXO, decision.targetPath());
         assertEquals(IjkRuntimeProfilePolicy.FailureKind.STARTUP,
                 decision.assessment().kind());
         assertFalse(decision.failurePersisted());
@@ -157,7 +157,7 @@ public class IjkRuntimeProfileControllerTest {
 
         assertEquals(IjkRuntimeProfilePolicy.Path.IJK_SOFT,
                 first.targetPath());
-        assertEquals(IjkRuntimeProfilePolicy.Path.MPV, second.targetPath());
+        assertEquals(IjkRuntimeProfilePolicy.Path.EXO, second.targetPath());
         assertFalse(third.requestsSwitch());
         assertEquals(IjkRuntimeProfileController.Reason.FALLBACK_LIMIT,
                 third.reason());
@@ -169,7 +169,7 @@ public class IjkRuntimeProfileControllerTest {
     }
 
     @Test
-    public void persistentSoftExclusionSkipsDirectlyToMpv() {
+    public void persistentSoftExclusionSkipsDirectlyToExo() {
         RecordingProfiles profiles = new RecordingProfiles();
         profiles.exclude(profileKey(profiles),
                 IjkRuntimeProfilePolicy.Path.IJK_SOFT);
@@ -178,7 +178,7 @@ public class IjkRuntimeProfileControllerTest {
         IjkRuntimeProfileController.Decision decision = decoderFailure(
                 controller, true, EPOCH + 10);
 
-        assertEquals(IjkRuntimeProfilePolicy.Path.MPV, decision.targetPath());
+        assertEquals(IjkRuntimeProfilePolicy.Path.EXO, decision.targetPath());
         assertTrue(profiles.persistentExclusionsLogged.contains(
                 IjkRuntimeProfilePolicy.Path.IJK_SOFT));
     }
@@ -211,7 +211,7 @@ public class IjkRuntimeProfileControllerTest {
                         false),
                 ELAPSED,
                 EPOCH);
-        assertEquals(IjkRuntimeProfilePolicy.Path.MPV, decision.targetPath());
+        assertEquals(IjkRuntimeProfilePolicy.Path.EXO, decision.targetPath());
         controller.onPrepared(SESSION_A);
         controller.onFirstFrame(
                 SESSION_A,
@@ -238,7 +238,7 @@ public class IjkRuntimeProfileControllerTest {
         assertEquals(IjkRuntimeProfileController.ObservationAction.STABLE,
                 stable.action());
         assertTrue(stable.fallbackSucceeded());
-        assertEquals(List.of(IjkRuntimeProfilePolicy.Path.MPV),
+        assertEquals(List.of(IjkRuntimeProfilePolicy.Path.EXO),
                 profiles.stablePaths);
         assertEquals(List.of(IjkRuntimeProfilePolicy.Path.IJK_HARD),
                 profiles.fallbackSourcePaths);

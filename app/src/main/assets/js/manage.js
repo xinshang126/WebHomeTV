@@ -368,6 +368,7 @@ function updateRemotePicker() {
 }
 
 function showManageView(view) {
+    if (view === 'csp' || view === 'proxy') return;
     currentView = view;
     activateManageView(view);
     updateRemotePicker();
@@ -406,8 +407,6 @@ function loadCurrentView(force) {
     if (currentView === 'files') listFile(force ? '' : currentRoot);
     if (currentView === 'sync') loadSyncManage(force);
     if (currentView === 'loginState') loadLoginStateManage(force);
-    if (currentView === 'csp') loadCspManage(force);
-    if (currentView === 'proxy') loadProxyManage(force);
     if (currentView === 'configs') loadConfigsManage(force);
     if (currentView === 'search' || currentView === 'push') updateActionModeText();
 }

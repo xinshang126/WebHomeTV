@@ -92,17 +92,16 @@ public class PlayerSetting {
     }
 
     public static boolean isPlayer(int player) {
-        return player == EXO || player == IJK || player == MPV;
+        return player == EXO || player == IJK;
     }
 
     public static int sanitizePlayer(int player) {
-        return player == IJK || player == MPV ? player : EXO;
+        return player == IJK ? IJK : EXO;
     }
 
     public static int nextPlayer(int player) {
         return switch (sanitizePlayer(player)) {
             case EXO -> IJK;
-            case IJK -> MPV;
             default -> EXO;
         };
     }

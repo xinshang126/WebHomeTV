@@ -68,7 +68,6 @@ import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.LiveEpgSetting;
 import com.fongmi.android.tv.setting.LiveSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.CustomCspSetting;
 import com.fongmi.android.tv.ui.adapter.ChannelAdapter;
 import com.fongmi.android.tv.ui.adapter.EpgDataAdapter;
 import com.fongmi.android.tv.ui.adapter.GroupAdapter;
@@ -682,7 +681,6 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     private void refreshInjectedLives() {
         if (!CustomCspSetting.hasLives()) return;
         Live home = getHome();
-        CustomCspSetting.inject(LiveConfig.get().getLives(), "");
         LiveConfig.get().getLives().removeIf(Live::isEmpty);
         LiveConfig.get().getLives().forEach(item -> item.setSelected(home));
     }

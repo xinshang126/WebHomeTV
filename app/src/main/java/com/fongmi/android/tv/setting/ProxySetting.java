@@ -31,18 +31,6 @@ public class ProxySetting {
 
     public static void apply() {
         OkHttp.selector().remove(NAME);
-        OkHttp.closeIdleConnections();
-        if (!Setting.isShellProxy()) {
-            SpiderDebug.log("proxy", "app proxy disabled");
-            return;
-        }
-        List<Proxy> rules = getRules();
-        if (rules.isEmpty()) {
-            SpiderDebug.log("proxy", "app proxy enabled but no valid rules defaultUrl=%s rulesLength=%s", safeUrl(Setting.getShellProxyUrl()), Setting.getShellProxyRules().length());
-            return;
-        }
-        OkHttp.selector().addAll(rules);
-        SpiderDebug.log("proxy", "app proxy enabled rules=%s defaultUrl=%s", rules.size(), safeUrl(Setting.getShellProxyUrl()));
     }
 
     public static List<Proxy> getRules() {

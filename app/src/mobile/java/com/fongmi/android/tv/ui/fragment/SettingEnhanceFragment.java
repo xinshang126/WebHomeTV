@@ -64,6 +64,11 @@ public class SettingEnhanceFragment extends BaseFragment {
     @Override
     protected void initView() {
         reorderItems();
+        mBinding.customCsp.setVisibility(View.GONE);
+        mBinding.shellProxy.setVisibility(View.GONE);
+        mBinding.shellProxyConfig.setVisibility(View.GONE);
+        mBinding.webHomeExtension.setVisibility(View.GONE);
+        mBinding.webHomeFullscreen.setVisibility(View.GONE);
         setText();
     }
 
@@ -84,23 +89,13 @@ public class SettingEnhanceFragment extends BaseFragment {
         mBinding.debugLog.setOnClickListener(this::setDebugLog);
         mBinding.siteHealthSort.setOnClickListener(view -> SiteHealthDialog.show(this, this::setText));
         mBinding.siteHealthSort.setOnLongClickListener(this::clearSiteHealth);
-        mBinding.webHomeExtension.setOnClickListener(view -> WebHomeExtensionDialog.show(this, this::setText));
-        mBinding.webHomeExtension.setOnLongClickListener(this::clearWebHomeExtension);
-        mBinding.webHomeFullscreen.setOnClickListener(this::setWebHomeFullscreen);
         mBinding.cspWarmup.setOnClickListener(this::setCspWarmup);
         mBinding.playbackArtworkWall.setOnClickListener(this::setPlaybackArtworkWall);
         mBinding.playbackWebhook.setOnClickListener(view -> ViewingRecordSyncDialog.show(this, this::setText));
         mBinding.managePage.setOnClickListener(view -> ManagePageDialog.show(this));
         mBinding.remoteTrust.setOnClickListener(view -> RemoteTrustDialog.show(this, this::setText));
         mBinding.gitCloud.setOnClickListener(view -> GitCloudDialog.show(this, this::setText));
-        mBinding.shellProxy.setOnClickListener(view -> ShellProxyDialog.show(this, this::setText));
-        mBinding.shellProxy.setOnLongClickListener(v -> false);
         mBinding.shellProxyConfig.setVisibility(View.GONE);
-        mBinding.customCsp.setOnClickListener(view -> PermissionUtil.requestFile(this, granted -> {
-            if (!isAdded() || isStateSaved() || getActivity() == null) return;
-            if (granted) CustomCspDialog.show(this, this::setText);
-            else Notify.show(R.string.setting_custom_csp_permission_required);
-        }));
         mBinding.loginState.setOnClickListener(view -> LoginStateLearnDialog.show(this, this::setText));
         mBinding.oneKeySync.setOnClickListener(v -> OneKeySyncDialog.create().show(requireActivity()));
     }

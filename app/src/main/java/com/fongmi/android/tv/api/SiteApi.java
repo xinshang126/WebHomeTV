@@ -113,7 +113,7 @@ public class SiteApi {
     @NonNull
     public static Result detailContent(@NonNull String key, @NonNull String id) throws Exception {
         SpiderDebug.log("detail", "key=%s,id=%s", key, id);
-        if (WebHomeInlineVodStore.KEY.equals(key)) return WebHomeInlineVodStore.detail(id);
+        if (WebHomeInlineVodStore.KEY.equals(key)) return Result.empty();
         Site site = VodConfig.get().getSite(key);
         if (site.isEmpty() && PUSH.equals(key)) {
             Vod vod = new Vod();
@@ -151,7 +151,7 @@ public class SiteApi {
     public static Result playerContent(@NonNull String key, @NonNull String flag, @NonNull String id, int playerType) throws Exception {
         SpiderDebug.log("player", "key=%s,flag=%s,id=%s", key, flag, id);
         Source.get().stop();
-        if (WebHomeInlineVodStore.KEY.equals(key)) return WebHomeInlineVodStore.player(flag, id);
+        if (WebHomeInlineVodStore.KEY.equals(key)) return Result.empty();
         Site site = VodConfig.get().getSite(key);
         if (site.getType() == 3) {
             String playerContent = site.recent().spider().playerContent(flag, id, VodConfig.get().getFlags());

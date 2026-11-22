@@ -14,9 +14,7 @@ import com.fongmi.android.tv.bean.Site;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
-import com.fongmi.android.tv.setting.CustomCspSetting;
 import com.fongmi.android.tv.utils.UrlUtil;
-import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.bean.Header;
 import com.github.catvod.bean.Proxy;
@@ -91,7 +89,6 @@ public class VodConfig extends BaseConfig {
         flags = null;
         rules = null;
         parses = null;
-        WebHomeExtensionRegistry.get().setGlobalSources(null, "");
         BaseLoader.get().clear();
         RuleConfig.get().invalidate();
         return this;
@@ -154,13 +151,11 @@ public class VodConfig extends BaseConfig {
     }
 
     private void parseConfig(Config config, JsonObject object) {
-        CustomCspSetting.inject(object);
         initList(object);
         initLive(config, object);
         initWall(config, object);
         initSite(config, object);
         initParse(config, object);
-        WebHomeExtensionRegistry.get().setGlobalSources(object.get("webHomeExtensions"), config.getUrl());
         config.setLogo(Json.safeString(object, "logo"));
         config.setNotice(Json.safeString(object, "notice"));
         config.setDanmaku(Json.safeString(object, "danmaku"));
@@ -197,8 +192,7 @@ public class VodConfig extends BaseConfig {
         setSites(Json.safeListElement(object, "sites").stream().map(e -> Site.objectFrom(e, spider)).distinct().collect(Collectors.toCollection(ArrayList::new)));
         Map<String, Site> items = Site.findAll().stream().collect(Collectors.toMap(Site::getKey, Function.identity()));
         getSites().forEach(site -> site.sync(items.get(site.getKey())));
-        CustomCspSetting.Result custom = CustomCspSetting.inject(getSites());
-        Site home = !custom.home().isEmpty() ? custom.home() : getSites().stream().filter(item -> item.getKey().equals(config.getHome())).findFirst().orElse(getSites().isEmpty() ? new Site() : getSites().get(0));
+        Site home = getSites().stream().filter(item -> item.getKey().equals(config.getHome())).findFirst().orElse(getSites().isEmpty() ? new Site() : getSites().get(0));
         setHome(config, home, false);
     }
 

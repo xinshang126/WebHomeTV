@@ -492,7 +492,7 @@ public class Setting {
     }
 
     public static boolean isWebHomeExtension() {
-        return Prefers.getBoolean("web_home_extension", true);
+        return false;
     }
 
     public static void putWebHomeExtension(boolean extension) {
@@ -500,7 +500,7 @@ public class Setting {
     }
 
     public static boolean isWebHomeFullscreen() {
-        return Prefers.getBoolean("web_home_fullscreen", true);
+        return false;
     }
 
     public static void putWebHomeFullscreen(boolean fullscreen) {
@@ -619,7 +619,7 @@ public class Setting {
     }
 
     public static boolean isShellProxy() {
-        return Prefers.getBoolean("shell_proxy");
+        return false; // Shell proxy is not available in JKTV.
     }
 
     public static void putShellProxy(boolean shellProxy) {

@@ -14,7 +14,6 @@ import com.fongmi.android.tv.impl.BufferListener;
 import com.fongmi.android.tv.impl.SpeedListener;
 import com.fongmi.android.tv.impl.UaListener;
 import com.fongmi.android.tv.player.lut.LutSetting;
-import com.fongmi.android.tv.player.mpv.MpvConfigStore;
 import com.fongmi.android.tv.setting.PlaybackPerformanceSetting;
 import com.fongmi.android.tv.setting.PlayerButtonSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
@@ -23,7 +22,6 @@ import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.ui.dialog.BufferDialog;
 import com.fongmi.android.tv.ui.dialog.LutDialog;
-import com.fongmi.android.tv.ui.dialog.MpvConfigDialog;
 import com.fongmi.android.tv.ui.dialog.PlaybackPerformanceDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerOsdDialog;
 import com.fongmi.android.tv.ui.dialog.PlayerButtonConfigDialog;
@@ -102,11 +100,6 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.kernel.setOnClickListener(this::setKernel);
         mBinding.scale.setOnClickListener(this::setScale);
         mBinding.lut.setOnClickListener(this::onLut);
-        mBinding.mpvConfig.setOnClickListener(view -> MpvConfigDialog.show(this, () -> mBinding.mpvConfigText.setText(MpvConfigStore.summary())));
-        mBinding.blurayMenu.setOnClickListener(view -> {
-            PlayerSetting.putBlurayMenu(!PlayerSetting.isBlurayMenu());
-            mBinding.blurayMenuText.setText(getSwitch(PlayerSetting.isBlurayMenu()));
-        });
         mBinding.osd.setOnClickListener(this::onOsd);
         mBinding.playerButtons.setOnClickListener(view -> PlayerButtonConfigDialog.show(this, this::setPlayerButtonsText));
         mBinding.speed.setOnClickListener(this::onSpeed);
@@ -175,11 +168,8 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
     }
 
     private void setMpvRows() {
-        boolean visible = PlayerSetting.getPlayer() == PlayerSetting.MPV;
-        mBinding.mpvConfig.setVisibility(visible ? View.VISIBLE : View.GONE);
-        mBinding.blurayMenu.setVisibility(visible ? View.VISIBLE : View.GONE);
-        mBinding.mpvConfigText.setText(MpvConfigStore.summary());
-        mBinding.blurayMenuText.setText(getSwitch(PlayerSetting.isBlurayMenu()));
+        mBinding.mpvConfig.setVisibility(View.GONE);
+        mBinding.blurayMenu.setVisibility(View.GONE);
     }
 
     private void onOsd(View view) {

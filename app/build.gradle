@@ -35,7 +35,7 @@ android {
     ndkVersion "29.0.14206865"
 
     defaultConfig {
-        applicationId "com.fongmi.android.tv"
+        applicationId "com.jktv.player"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
         versionCode 560
@@ -90,6 +90,9 @@ android {
 
     // ASS rendering is part of normal builds; package the matching prebuilt ABI.
     sourceSets.main.jniLibs.srcDir(rootProject.file('third_party/exo-ass-native/prebuilt'))
+    // These ABI flavor asset roots contain only the retired MPV native payload.
+    sourceSets.arm64_v8a.assets.setSrcDirs([])
+    sourceSets.armeabi_v7a.assets.setSrcDirs([])
 
     signingConfigs {
         release {

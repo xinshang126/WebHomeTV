@@ -70,6 +70,10 @@ public class Manage implements Process {
     @Override
     public Response doResponse(IHTTPSession session, String url, Map<String, String> files) {
         try {
+            if (url.equals("/manage/proxy") || url.startsWith("/manage/proxy/")
+                    || url.equals("/manage/csp") || url.startsWith("/manage/csp/")) {
+                return Nano.error(Status.NOT_FOUND, "Not found");
+            }
             ManageService.touch();
             if (url.equals("/manage/session")) return session(session.getParms());
             if (url.equals("/manage/background/settings")) return backgroundSettings(session);
@@ -100,11 +104,6 @@ public class Manage implements Process {
                 case "/manage/login-state/paths" -> loginStatePaths(session.getParms());
                 case "/manage/login-state/confirm" -> loginStateConfirm();
                 case "/manage/login-state/tree" -> loginStateTree(session.getParms());
-                case "/manage/proxy" -> proxy(session.getParms());
-                case "/manage/proxy/suggest/sites" -> proxySuggestSites();
-                case "/manage/proxy/suggest" -> proxySuggest(session.getParms());
-                case "/manage/csp/page" -> cspPage(session.getParms());
-                case "/manage/csp" -> csp(session.getParms());
                 default -> Nano.error(Status.NOT_FOUND, "Not found");
             };
         } catch (Exception e) {

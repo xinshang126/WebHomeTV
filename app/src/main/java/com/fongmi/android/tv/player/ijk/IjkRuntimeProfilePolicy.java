@@ -132,6 +132,7 @@ public final class IjkRuntimeProfilePolicy {
         Path applied = current == null ? Path.IJK_HARD : current;
         Set<Path> seen = visited == null ? Set.of() : visited;
         if (verifiedPreferred != null
+                && verifiedPreferred != Path.MPV
                 && verifiedPreferred != applied
                 && !seen.contains(verifiedPreferred)
                 && (verifiedPreferred != Path.IJK_SOFT || softEligible)) {
@@ -141,7 +142,6 @@ public final class IjkRuntimeProfilePolicy {
                 && !seen.contains(Path.IJK_SOFT)) {
             return Path.IJK_SOFT;
         }
-        if (applied != Path.MPV && !seen.contains(Path.MPV)) return Path.MPV;
         if (applied != Path.EXO && !seen.contains(Path.EXO)) return Path.EXO;
         return null;
     }

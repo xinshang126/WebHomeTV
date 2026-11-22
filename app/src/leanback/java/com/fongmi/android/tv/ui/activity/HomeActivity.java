@@ -354,7 +354,6 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
         getHistory();
         getVideo();
         setFocus();
-        App.post(this::prewarmWebView, 1500);
         SpiderDebug.log("startup", "home showContent end cost=%sms", System.currentTimeMillis() - App.time());
     }
 

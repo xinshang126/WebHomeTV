@@ -224,88 +224,6 @@
                 </div>
             </section>
 
-            <section id="viewCsp" class="manage-view">
-                <input type="file" id="csp_file_uploader" accept=".html,.htm,.txt,.json,.js" onchange="onCspFileSelected()" />
-                <div class="manage-header">
-                    <div>
-                        <div class="manage-title">站点注入</div>
-                        <div class="manage-subtitle" id="cspSummary">读取中</div>
-                    </div>
-                    <div class="hero-actions">
-                        <button class="md-btn md-btn-tonal" onclick="addCspItem('webHome')" type="button">新增</button>
-                        <button class="md-btn md-btn-filled" onclick="saveCspManage()" type="button">保存</button>
-                    </div>
-                </div>
-                <div class="csp-editor-tabs">
-                    <div class="segmented">
-                        <button id="cspModeForm" class="segment active" onclick="setCspMode('form')" type="button">表单</button>
-                        <button id="cspModeJson" class="segment" onclick="setCspMode('json')" type="button">JSON</button>
-                    </div>
-                </div>
-                <div id="cspFormPanel" class="csp-mode-panel">
-                    <div class="manage-card manage-form-card">
-                        <label class="check-row"><input id="cspEnabled" type="checkbox" onchange="updateCspGlobal()"><span>启用站点注入</span></label>
-                        <div class="field-row compact insert-row">
-                            <label class="field-label">插入位置</label>
-                            <button class="step-btn" onclick="stepCspInsert(-1)" type="button">-</button>
-                            <span id="cspInsertText" class="insert-value">1</span>
-                            <button class="step-btn" onclick="stepCspInsert(1)" type="button">+</button>
-                        </div>
-                    </div>
-                    <div id="cspList"></div>
-                </div>
-                <div id="cspJsonPanel" class="csp-mode-panel">
-                    <div class="manage-card csp-json-card">
-                        <div class="card-line csp-json-head">
-                            <div>
-                                <div class="manage-card-title">JSON 配置</div>
-                                <div class="manage-subtitle">保存时按 JSON 生效</div>
-                            </div>
-                            <button class="md-btn md-btn-tonal md-btn-compact" onclick="formatCspJson()" type="button">格式化</button>
-                        </div>
-                        <textarea id="cspRaw" class="code-area" spellcheck="false"></textarea>
-                    </div>
-                </div>
-            </section>
-
-            <section id="viewProxy" class="manage-view proxy-view">
-                <div class="workspace-panel">
-                    <div class="workspace-hero proxy-hero">
-                        <div class="workspace-hero-main">
-                            <div class="manage-title">壳代理 Proxy</div>
-                            <div class="manage-subtitle" id="proxySummary">读取中</div>
-                        </div>
-                        <button class="md-btn md-btn-filled proxy-save-btn" onclick="saveProxyManage()" type="button">保存</button>
-                    </div>
-                    <div class="manage-card manage-form-card proxy-form-card">
-                        <div class="card-line proxy-control-line">
-                            <button id="proxyEnabled" class="toggle-pill on" onclick="toggleProxyEnabled()" type="button">启用</button>
-                            <div class="segmented">
-                                <button id="proxyModeForm" class="segment active" onclick="setProxyMode('form')" type="button">表单</button>
-                                <button id="proxyModeText" class="segment" onclick="setProxyMode('text')" type="button">文本</button>
-                            </div>
-                        </div>
-                        <label class="form-label" for="proxyUrl">默认代理地址</label>
-                        <input id="proxyUrl" class="md-input" type="text" placeholder="例如 socks5://127.0.0.1:9978" />
-                        <div id="proxyFormPanel" class="proxy-rule-panel">
-                            <div class="card-line proxy-rule-title-line">
-                                <div class="manage-card-title">代理规则</div>
-                                <div class="card-actions">
-                                    <button class="md-btn md-btn-tonal md-btn-compact" onclick="showProxySuggestDialog()" type="button">自动建议</button>
-                                    <button class="md-btn md-btn-tonal md-btn-compact" onclick="showProxyRecognizeDialog()" type="button">自动识别</button>
-                                    <button class="md-btn md-btn-tonal md-btn-compact" onclick="addProxyRule()" type="button">新增规则</button>
-                                </div>
-                            </div>
-                            <div id="proxyRuleList" class="proxy-rule-list"></div>
-                        </div>
-                        <div id="proxyTextPanel" class="proxy-text-panel">
-                            <label class="form-label" for="proxyRules">JSON 或行文本规则</label>
-                            <textarea id="proxyRules" class="code-area" spellcheck="false" placeholder="每行一条规则：域名 代理地址&#10;也支持 JSON：{&quot;proxy&quot;:[{&quot;hosts&quot;:[&quot;*&quot;],&quot;urls&quot;:[&quot;socks5://127.0.0.1:9978&quot;]}]}"></textarea>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <section id="viewConfigs" class="manage-view">
                 <div class="workspace-panel configs-view">
                     <div class="workspace-hero">
@@ -365,8 +283,6 @@
             <button id="navFiles" class="md-nav-item active" onclick="showManageView('files')"><span class="md-nav-label">文件</span></button>
             <button id="navSync" class="md-nav-item" onclick="showManageView('sync')"><span class="md-nav-label">同步</span></button>
             <button id="navLoginState" class="md-nav-item" onclick="showManageView('loginState')"><span class="md-nav-label">登录态</span></button>
-            <button id="navCsp" class="md-nav-item" onclick="showManageView('csp')"><span class="md-nav-label">站点</span></button>
-            <button id="navProxy" class="md-nav-item" onclick="showManageView('proxy')"><span class="md-nav-label">Proxy</span></button>
             <button id="navConfigs" class="md-nav-item" onclick="showManageView('configs')"><span class="md-nav-label">接口</span></button>
             <button id="navSearch" class="md-nav-item" onclick="showManageView('search')"><span class="md-nav-label">搜索</span></button>
             <button id="navPush" class="md-nav-item" onclick="showManageView('push')"><span class="md-nav-label">推送</span></button>

@@ -116,7 +116,6 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
         mBinding.title.setSelected(true);
         mHomeWebTopMargin = ((ViewGroup.MarginLayoutParams) mBinding.homeWeb.getLayoutParams()).topMargin;
         setRecyclerView();
-        setWebView();
         setViewModel();
         showProgress();
         setTitle();
@@ -160,11 +159,6 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
         mBinding.type.setItemAnimator(null);
         mBinding.type.setAdapter(mAdapter = new TypeAdapter(this));
         mBinding.pager.setAdapter(new PageAdapter(getChildFragmentManager()));
-    }
-
-    private void setWebView() {
-        mWeb = new HomeWebController(requireActivity(), mBinding.homeWeb, this);
-        syncWebHomeChrome();
     }
 
     private void setViewModel() {

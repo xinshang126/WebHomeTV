@@ -3426,10 +3426,7 @@ public class PlayerManager implements ParseCallback {
 
     private static int playerTypeForIjkRuntimePath(
             IjkRuntimeProfilePolicy.Path path) {
-        if (path == IjkRuntimeProfilePolicy.Path.MPV) {
-            return PlayerSetting.MPV;
-        }
-        if (path == IjkRuntimeProfilePolicy.Path.EXO) {
+        if (path == IjkRuntimeProfilePolicy.Path.EXO || path == IjkRuntimeProfilePolicy.Path.MPV) {
             return PlayerSetting.EXO;
         }
         return PlayerSetting.IJK;
@@ -5116,7 +5113,6 @@ public class PlayerManager implements ParseCallback {
     private PlayerEngine buildEngine(int type, int decode) {
         return switch (type) {
             case PlayerSetting.IJK -> new IjkPlayerEngine(decode, listener);
-            case PlayerSetting.MPV -> new MpvPlayerEngine(decode, listener, this::onMpvVideoSizeProbed);
             default -> new ExoPlayerEngine(decode, listener);
         };
     }
@@ -7163,7 +7159,6 @@ public class PlayerManager implements ParseCallback {
     private static PlaybackAutoContext.Kernel playbackAutoKernel(int playerType) {
         return switch (PlayerSetting.sanitizePlayer(playerType)) {
             case PlayerSetting.IJK -> PlaybackAutoContext.Kernel.IJK;
-            case PlayerSetting.MPV -> PlaybackAutoContext.Kernel.MPV;
             default -> PlaybackAutoContext.Kernel.EXO;
         };
     }
