@@ -29,8 +29,8 @@ public final class DebugLogDialog {
 
     public static void show(FragmentActivity activity) {
         Server.get().start();
-        String localUrl = Server.get().getAddress("/debug/logs");
-        String lanUrl = Server.get().getAddress(false) + "/debug/logs";
+        String localUrl = Server.get().getLogAddress(true);
+        String lanUrl = Server.get().getLogAddress(false);
         SpiderDebug.log("debug", "logs service ready url=%s lan=%s", localUrl, lanUrl);
         String message = activity.getString(R.string.debug_log_dialog_message, lanUrl, localUrl);
         MaterialTextView content = new MaterialTextView(activity);

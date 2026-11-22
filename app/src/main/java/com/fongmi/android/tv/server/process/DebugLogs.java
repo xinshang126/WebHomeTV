@@ -85,7 +85,7 @@ public class DebugLogs implements Process {
 
     private boolean originAllowed(IHTTPSession session) {
         java.util.Set<String> hosts = new java.util.HashSet<>();
-        for (String address : new String[]{Server.get().getAddress("/debug/logs"), Server.get().getAddress(false)}) {
+        for (String address : new String[]{Server.get().getLogAddress(true), Server.get().getLogAddress(false), Server.get().getAddress(false)}) {
             try { hosts.add(java.net.URI.create(address).getRawAuthority().toLowerCase(java.util.Locale.ROOT)); } catch (RuntimeException ignored) {}
         }
         return DiagnosticAccess.sameOrigin(session.getHeaders().get("origin"), session.getHeaders().get("host"), hosts);
@@ -210,8 +210,8 @@ public class DebugLogs implements Process {
 
     private String html() {
         String logs = escape(DebugLogStore.text());
-        String localUrl = Server.get().getAddress("/debug/logs");
-        String lanUrl = Server.get().getAddress(false) + "/debug/logs";
+        String localUrl = Server.get().getLogAddress(true);
+        String lanUrl = Server.get().getLogAddress(false);
         boolean enabled = DebugLogStore.isEnabled();
         return "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
