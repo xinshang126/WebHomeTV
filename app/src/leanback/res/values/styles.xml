@@ -10,7 +10,7 @@
     </style>
 
     <style name="Theme.Splash" parent="Theme.Base">
-        <item name="android:windowBackground">@drawable/startup_window_background</item>
+        <item name="android:windowBackground">@drawable/jktv_startup</item>
     </style>
 
     <style name="Theme.App" parent="Theme.Base" />

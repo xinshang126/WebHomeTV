@@ -99,7 +99,7 @@ public final class PlaybackPerformanceCatalog {
         options.add(option(TRACK_LIMIT, BASIC, "视频轨道限制", "作用：阻止 EXO 选择超过屏幕/硬解能力的轨道。想要“少卡顿”请选择开启（默认）；关闭只适合确认设备能稳定解码最高画质的情况。代价：开启可能主动放弃过高分辨率，换取播放成功率。"));
         options.add(option(ADAPTIVE_DOWNGRADE, BASIC, "自适应降级", "作用：重缓冲、连续掉帧或带宽不足时自动降到更容易播放的轨道。弱网、4K大文件建议开启（默认）；追求始终最高画质可关闭。代价：降级后本次播放不会自动升回，画质可能降低。"));
         options.add(option(BANDWIDTH_METER, BASIC, "带宽估算", "作用：用实际下载速度帮助 EXO 选轨和判断是否降级。网络忽快忽慢时建议开启（默认），可减少反复切换和卡顿；固定高速内网可关闭。代价：估算偏保守时可能提前选择低画质，它不会额外测速。"));
-        options.add(option(TUNNEL, BASIC, "隧道模式", "作用：尝试让音视频走硬件直通，降低 CPU 并改善同步。电视硬解且只追求播放流畅时可尝试开启；出现黑屏、无声、字幕/LUT失效立即关闭。代价：依赖设备和 SurfaceView，兼容性不如普通路径。"));
+        options.add(option(TUNNEL, BASIC, "隧道模式", "作用：尝试让音视频走硬件直通，降低 CPU 并改善同步。电视硬解且只追求播放流畅时可尝试开启；出现黑屏、无声、字幕失效立即关闭。代价：依赖设备和 SurfaceView，兼容性不如普通路径。"));
         options.add(option(EXO_FRAME_RATE, BASIC, "帧率匹配", "作用：请求显示刷新率贴合视频帧率。默认“仅无缝”只接受系统无黑屏的切换；电影模式允许长片切换到精确刷新率；“分辨率+刷新率”还会匹配1080p/4K输出。遇到黑屏或刷新率异常选关闭。代价：强制模式可能黑屏1～2秒，系统也可能拒绝请求。"));
         addSharedBuffer(options, true, false);
         options.add(option(EXO_START_BUFFER, BUFFER, "起播阈值", "作用：开始播放前至少准备多少秒。自动档会按协议、分片边界、可信吞吐和缓冲趋势为每次起播锁定门槛；手动固定值可按弱网/4K用2～3秒，追求秒开用0.5～1秒。代价：阈值越高首帧越慢。"));
@@ -123,7 +123,7 @@ public final class PlaybackPerformanceCatalog {
     }
 
     private static void addMpv(List<PlaybackPerformanceOption> options) {
-        options.add(option(MPV_OUTPUT, BASIC, "输出模式", "怎么选：保持“自动”（默认）最省心；电视播放4K且不需要MPV字幕/LUT/shader/滤镜时会在确认设备支持当前视频后自动用“电视直出”，这是当前最低GPU开销、最优先保证流畅的路径。需要MPV完整图像处理选“GPU渲染”；自动判断不正确时可手动选“电视直出”。代价：电视直出不经过OpenGL/Vulkan，MPV原生字幕和GPU滤镜不可用。"));
+        options.add(option(MPV_OUTPUT, BASIC, "输出模式", "怎么选：保持“自动”（默认）最省心；电视播放4K且不需要MPV字幕/shader/滤镜时会在确认设备支持当前视频后自动用“电视直出”，这是当前最低GPU开销、最优先保证流畅的路径。需要MPV完整图像处理选“GPU渲染”；自动判断不正确时可手动选“电视直出”。代价：电视直出不经过OpenGL/Vulkan，MPV原生字幕和GPU滤镜不可用。"));
         options.add(option(MPV_RENDER, BASIC, "渲染后端", "怎么选：GPU渲染模式先选 OpenGL，兼容性最好；确认设备 Vulkan 驱动稳定且需要 gpu-next/libplacebo 时再选 Vulkan。电视直出时本参数不参与视频输出，切换也不会变快。代价：Vulkan可能更高效，也可能因驱动问题卡顿、黑屏并自动回退OpenGL。"));
         options.add(option(MPV_VULKAN_BACKEND, BASIC, "Vulkan 视频路径", "怎么选：仅在渲染后端为 Vulkan 且使用 MediaCodec 硬解时生效，默认 direct。direct 直接采样 AHardwareBuffer，转换步骤少；如果设备出现 GPU 负载逐渐升高、卡顿或驱动兼容问题，可改用 legacy。legacy 使用旧版三输出 compute conversion；stable 使用四输出有界 fence 池，适合 direct 不兼容且 legacy 存在同步问题时尝试。选择“播放性能优先”时本选项覆盖 mpv.conf；选择“mpv.conf优先”时，android-vulkan-aimagereader-backend 等同名配置覆盖本选项。切换后需要重新进入播放。"));
         options.add(option(MPV_HWDEC, BASIC, "硬解路径", "怎么选：保持“自动回退”（默认）；它先试 mediacodec 零拷贝，失败再试兼容复制。电视4K追求最高流畅可选“零拷贝优先”；只有零拷贝黑屏、崩溃或解码异常时选“兼容复制”。代价：兼容复制会复制每帧，4K 10bit内存带宽开销大，可能明显卡顿。"));
@@ -188,7 +188,7 @@ public final class PlaybackPerformanceCatalog {
             int kernel,
             boolean recommendedMerged) {
         return switch (kernel) {
-            case PlayerSetting.MPV -> "首选“自动”：电视4K硬解且不需要MPV字幕/LUT/shader/滤镜时自动使用低开销电视直出，并按可信吞吐和运行状态控制缓存、预载与HLS码率。“轻量”面向低端或问题设备，保留自动输出和硬解回退，关闭帧率切换、预载和回退缓存，限制HLS至8Mbps并使用64MB前向缓存；优先保证连续播放，最高画质和回看速度可能下降。自动档内手动修改的项目会单独固定，其他项目继续自动；重新选择“自动”可清除全部覆盖。";
+            case PlayerSetting.MPV -> "首选“自动”：电视4K硬解且不需要MPV字幕/shader/滤镜时自动使用低开销电视直出，并按可信吞吐和运行状态控制缓存、预载与HLS码率。“轻量”面向低端或问题设备，保留自动输出和硬解回退，关闭帧率切换、预载和回退缓存，限制HLS至8Mbps并使用64MB前向缓存；优先保证连续播放，最高画质和回看速度可能下降。自动档内手动修改的项目会单独固定，其他项目继续自动；重新选择“自动”可清除全部覆盖。";
             case PlayerSetting.IJK -> "首选“自动”：按协议、内存和运行反馈在4/8/15MB有限队列中有界调整。“轻量”固定8MB、稳定水位、3帧画面队列、标准丢帧和温和软解降负载，并关闭预载；它比旧4MB激进轻量档更能抵抗网络抖动，同时比旧兼容档的15MB和5帧更省内存。自动档内手动修改的项目会单独固定，其他项目继续自动；重新选择“自动”可清除全部覆盖。";
             default -> "首选“自动”（也是默认）：根据协议、分片、可信吞吐、缓冲趋势和内存状态动态控制加载、预载、起播与重缓冲门槛。“轻量”面向低端或问题设备，使用SurfaceView、64MB容量上限、15～30秒缓冲、1.5秒起播和3秒恢复，关闭预载、回退缓存及帧率切换，同时保留解码器兜底、轨道限制和带宽估算。自动档内手动修改的项目会单独固定，其他项目继续自动；重新选择“自动”可清除全部覆盖。";
         };

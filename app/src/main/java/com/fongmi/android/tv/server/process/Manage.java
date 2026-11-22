@@ -26,6 +26,7 @@ import com.fongmi.android.tv.utils.MpvConfigSync;
 import com.fongmi.android.tv.utils.ProgressRequestBody;
 import com.fongmi.android.tv.utils.ScanTask;
 import com.fongmi.android.tv.utils.SyncFiles;
+import com.fongmi.android.tv.utils.Util;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.net.OkHttp;
 import com.github.catvod.utils.Path;
@@ -72,6 +73,9 @@ public class Manage implements Process {
         try {
             if (url.equals("/manage/proxy") || url.startsWith("/manage/proxy/")
                     || url.equals("/manage/csp") || url.startsWith("/manage/csp/")) {
+                return Nano.error(Status.NOT_FOUND, "Not found");
+            }
+            if (Util.isLeanback() && (url.equals("/manage/login-state") || url.startsWith("/manage/login-state/"))) {
                 return Nano.error(Status.NOT_FOUND, "Not found");
             }
             ManageService.touch();

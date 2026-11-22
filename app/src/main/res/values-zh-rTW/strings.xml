@@ -55,7 +55,6 @@
     <string name="play_timer">定時</string>
     <string name="play_title">章節</string>
     <string name="play_scale">原始</string>
-    <string name="play_lut">LUT</string>
     <string name="play_config">配置</string>
     <string name="play_cast">投屏</string>
     <string name="play_change">換源</string>
@@ -153,7 +152,7 @@
     <string name="setting_builtin_wall">內置壁紙</string>
     <string name="setting_player">播放設定</string>
     <string name="setting_danmaku">彈幕設定</string>
-    <string name="setting_enhance">增強功能</string>
+    <string name="setting_enhance">個性設定</string>
     <string name="repo_github">GitHub 倉庫</string>
     <string name="repo_cnb">CNB 倉庫</string>
     <string name="setting_debug_log">調試日誌</string>
@@ -903,7 +902,6 @@
     <string name="pan_diagnostic_title">播放鏈路診斷</string>
     <string name="player_kernel">播放器內核</string>
     <string name="player_scale">縮放比例</string>
-    <string name="player_lut">LUT 調色</string>
     <string name="player_mpv_config">MPV 設定管理</string>
     <string name="player_bluray_menu">藍光原盤選單</string>
     <string name="disc_menu_root">主選單</string>
@@ -1055,36 +1053,7 @@
     <string name="player_speed">長按倍速</string>
     <string name="player_ua">User-Agent</string>
     <string name="player_osd">屏顯設定</string>
-    <string name="lut_original">原色</string>
-    <string name="lut_missing">預設不存在</string>
-    <string name="lut_summary">%1$s · %2$d%%</string>
-    <string name="lut_title_value">%1$s · %2$s</string>
-    <string name="lut_strength_value">強度 %1$d%%</string>
-    <string name="lut_preview_delay_value">%1$d秒</string>
-    <string name="lut_import">導入</string>
-    <string name="lut_local">本地</string>
-    <string name="lut_reset">重置</string>
-    <string name="lut_all">全部</string>
-    <string name="lut_favorite">收藏</string>
-    <string name="lut_directory">目錄</string>
-    <string name="lut_select_current_dir">選擇目前目錄</string>
-    <string name="lut_close">關閉</string>
-    <string name="lut_imported">LUT 預設已導入</string>
-    <string name="lut_directory_selected">LUT 目錄已選擇</string>
-    <string name="lut_import_failed">LUT 導入失敗</string>
-    <string name="lut_favorited">已加入收藏</string>
-    <string name="lut_unfavorited">已取消收藏</string>
-    <string name="lut_empty_presets">暫無 LUT 預設</string>
-    <string name="lut_empty_favorites">暫無收藏 LUT</string>
-    <string name="lut_apply_failed">LUT 調色已臨時關閉</string>
-    <string name="lut_unavailable_player">當前播放器內核不支援 LUT 調色</string>
-    <string name="lut_unavailable_output_mode">目前輸出模式不支援 LUT 調色，請切換為 GPU 輸出模式後使用</string>
-    <string name="lut_unavailable_drm">DRM 保護影片不支援 LUT 調色</string>
-    <string name="lut_unavailable_tunnel">隧道模式不支援 LUT 調色</string>
-    <string name="lut_unavailable_soft_decode">軟解不支援 LUT 調色</string>
-    <string name="lut_unavailable_video_prefer">擴展視訊解碼不支援 LUT 調色</string>
-    <string name="lut_unavailable_hdr">HDR/Dolby Vision 內容暫不支援 LUT 調色</string>
-    <string name="lut_unavailable_no_video">當前內容沒有視訊畫面</string>
+    <string name="file_select_current_dir">選擇目前目錄</string>
 
     <!-- Danmaku -->
     <string name="danmaku_load">彈幕載入</string>
@@ -1520,4 +1489,17 @@
 
     <string name="player_audio_badge_queue">佇列</string>
     <string name="player_audio_repeat">循環</string>
+    <string name="jktv_picker_title">選擇 JSON 設定檔</string>
+    <string name="jktv_picker_choose">選擇電視上的 .json 檔案。</string>
+    <string name="jktv_picker_system">系統檔案</string>
+    <string name="jktv_picker_permission">申請儲存空間存取</string>
+    <string name="jktv_picker_up">上一層</string>
+    <string name="jktv_picker_loading">正在讀取：%1$s</string>
+    <string name="jktv_picker_location">目前目錄：%1$s</string>
+    <string name="jktv_picker_empty">此處沒有可讀取的 .json 檔案或子目錄，可返回上一層。</string>
+    <string name="jktv_picker_folder_unreadable">無法讀取這個目錄，請返回上一層或換一個目錄。</string>
+    <string name="jktv_picker_system_missing">電視未能開啟系統檔案選擇器。請在 JKTV 內瀏覽，或返回後輸入設定網址。</string>
+    <string name="jktv_picker_original_required">JKTV 無法讀取此檔案的原始位置。請將 JSON 與配套檔案放在可讀取的同一個目錄，或輸入設定網址。</string>
+    <string name="jktv_picker_invalid">這個檔案不可用，或者不是可讀取的 .json 檔案。</string>
+    <string name="jktv_picker_access_missing">未能取得儲存空間存取。可使用系統檔案選擇，或返回後輸入設定網址。</string>
 </resources>

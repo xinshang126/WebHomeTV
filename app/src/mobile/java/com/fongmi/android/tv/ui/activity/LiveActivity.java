@@ -165,11 +165,6 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     @Override
-    protected boolean isLutAllowed() {
-        return false;
-    }
-
-    @Override
     protected boolean customWallMotion() {
         return false;
     }

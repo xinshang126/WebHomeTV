@@ -11,12 +11,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.fongmi.android.tv.bean.Config;
 import com.fongmi.android.tv.databinding.AdapterConfigBinding;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder> {
 
     private final OnClickListener listener;
-    private List<Config> mItems;
+    private final List<Config> mItems = new ArrayList<>();
     private boolean readOnly;
 
     public ConfigAdapter(OnClickListener listener) {
@@ -35,15 +36,11 @@ public class ConfigAdapter extends RecyclerView.Adapter<ConfigAdapter.ViewHolder
         return this;
     }
 
-    public ConfigAdapter addAll(int type) {
-        return addAll(type, null);
-    }
-
-    public ConfigAdapter addAll(int type, Config current) {
-        mItems = Config.getAll(type);
-        String currentUrl = current == null ? null : current.getUrl();
+    public void addAll(List<Config> items, String currentUrl) {
+        mItems.clear();
+        mItems.addAll(items);
         if (!readOnly && !TextUtils.isEmpty(currentUrl)) mItems.removeIf(item -> TextUtils.equals(item.getUrl(), currentUrl));
-        return this;
+        notifyDataSetChanged();
     }
 
     public int remove(Config item) {

@@ -6,34 +6,34 @@ public final class MpvAutoOutputPolicy {
     }
 
     public static Decision evaluate(int width, int height, boolean hardDecode,
-                                    boolean leanback, boolean lutOrFilterActive,
+                                    boolean leanback, boolean filterActive,
                                     boolean customGpuProcessing) {
-        return evaluate(width, height, hardDecode, leanback, lutOrFilterActive,
+        return evaluate(width, height, hardDecode, leanback, filterActive,
                 customGpuProcessing, DolbyVisionSupport.UNKNOWN, -1);
     }
 
     public static Decision evaluate(int width, int height, boolean hardDecode,
-                                    boolean leanback, boolean lutOrFilterActive,
+                                    boolean leanback, boolean filterActive,
                                     boolean customGpuProcessing,
                                     DolbyVisionSupport dolbyVisionSupport,
                                     int dolbyVisionProfile) {
-        return evaluate(width, height, hardDecode, leanback, lutOrFilterActive,
+        return evaluate(width, height, hardDecode, leanback, filterActive,
                 customGpuProcessing, dolbyVisionSupport, dolbyVisionProfile, false);
     }
 
     public static Decision evaluate(int width, int height, boolean hardDecode,
-                                    boolean leanback, boolean lutOrFilterActive,
+                                    boolean leanback, boolean filterActive,
                                     boolean customGpuProcessing,
                                     DolbyVisionSupport dolbyVisionSupport,
                                     int dolbyVisionProfile,
                                     boolean dv7Hdr10FallbackEnabled) {
-        return evaluate(width, height, hardDecode, leanback, lutOrFilterActive,
+        return evaluate(width, height, hardDecode, leanback, filterActive,
                 customGpuProcessing, dolbyVisionSupport, dolbyVisionProfile,
                 dv7Hdr10FallbackEnabled, DolbyVisionSupport.UNKNOWN);
     }
 
     public static Decision evaluate(int width, int height, boolean hardDecode,
-                                    boolean leanback, boolean lutOrFilterActive,
+                                    boolean leanback, boolean filterActive,
                                     boolean customGpuProcessing,
                                     DolbyVisionSupport dolbyVisionSupport,
                                     int dolbyVisionProfile,
@@ -41,7 +41,7 @@ public final class MpvAutoOutputPolicy {
                                     DolbyVisionSupport hevcHdr10Support) {
         if (!leanback) return new Decision(false, "not-tv");
         if (!hardDecode) return new Decision(false, "software-decode");
-        if (lutOrFilterActive) return new Decision(false, "lut-or-filter-active");
+        if (filterActive) return new Decision(false, "video-filter-active");
         if (customGpuProcessing) return new Decision(false, "custom-gpu-processing");
         if (dolbyVisionProfile > 0) {
             if (dolbyVisionSupport == DolbyVisionSupport.SUPPORTED) {
@@ -75,9 +75,9 @@ public final class MpvAutoOutputPolicy {
 
     /** Select the initial TV output before MPV has reported a video size. */
     public static boolean canStartSurfaceDirect(boolean hardDecode, boolean leanback,
-                                                 boolean lutOrFilterActive,
+                                                 boolean filterActive,
                                                  boolean customGpuProcessing) {
-        return evaluate(1, 1, hardDecode, leanback, lutOrFilterActive,
+        return evaluate(1, 1, hardDecode, leanback, filterActive,
                 customGpuProcessing).eligible();
     }
 

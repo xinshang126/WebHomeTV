@@ -1,10 +1,10 @@
 package com.fongmi.android.tv.ui.custom;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.util.AttributeSet;
@@ -23,6 +23,7 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
 import androidx.palette.graphics.Palette;
 
+import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.ViewWallBinding;
 import com.fongmi.android.tv.event.ConfigEvent;
@@ -37,6 +38,9 @@ import org.greenrobot.eventbus.ThreadMode;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import pl.droidsonroids.gif.GifDrawable;
 
@@ -48,11 +52,19 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     private static final int TYPE_RES = 0;
     private static final int TYPE_GIF = 1;
     private static final int TYPE_VIDEO = 2;
+    // Independent of the pool used by network sources. One worker also lets
+    // consecutive Settings screens share one decoded current wallpaper.
+    private static final ExecutorService WALL_WORKER = Executors.newSingleThreadExecutor();
+    private static WallSnapshot lastSnapshot; // WALL_WORKER only
+
     private ViewWallBinding binding;
     private GifDrawable drawable;
     private PlayerView video;
     private ExoPlayer player;
-    private final Runnable refreshRunnable = this::refresh;
+    private Future<?> pendingWork;
+    private long wallpaperRequest;
+    private File pendingVideo;
+    private boolean resumed;
     private boolean observerAdded;
     private boolean motionEnabled = true;
 
@@ -69,24 +81,20 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         if (isInEditMode()) return;
-        boolean loadedPlaceholder = false;
         if (binding == null) {
             binding = ViewWallBinding.inflate(LayoutInflater.from(getContext()), this, true);
-            loadPlaceholder();
-            loadedPlaceholder = true;
+            binding.image.setImageDrawable(new ColorDrawable(DEFAULT_WALL_COLOR));
         }
         if (!observerAdded) {
             ((ComponentActivity) getContext()).getLifecycle().addObserver(this);
             observerAdded = true;
         }
-        removeCallbacks(refreshRunnable);
-        if (loadedPlaceholder && isStaticBuiltInWall()) theme();
-        else post(refreshRunnable);
+        refresh();
     }
 
     @Override
     protected void onDetachedFromWindow() {
-        removeCallbacks(refreshRunnable);
+        cancelWork();
         super.onDetachedFromWindow();
     }
 
@@ -97,86 +105,82 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
 
     private void refresh() {
         if (!isReady()) return;
-        long start = System.currentTimeMillis();
+        cancelWork();
+        if (drawable != null) binding.image.setImageDrawable(new ColorDrawable(DEFAULT_WALL_COLOR));
         stop();
-        load();
-        theme();
-        SpiderDebug.log("startup", "wall refresh cost=%sms", System.currentTimeMillis() - start);
+        int wall = Setting.getWall();
+        int type = Setting.getWallType();
+        if (isBuiltInColor(wall, type)) {
+            int color = Setting.getBuiltInWallColor(wall);
+            binding.image.setImageDrawable(new ColorDrawable(color));
+            theme(color);
+            return;
+        }
+        int resId = isBuiltInDesign(wall, type) ? getDesignResId(wall)
+                : isGreen(wall, type) ? R.drawable.wallpaper_1 : 0;
+        int flatColor = isGreen(wall, type) ? GREEN_WALL_COLOR
+                : isBuiltInDesign(wall, type) ? Setting.getBuiltInWallColor(wall) : DEFAULT_WALL_COLOR;
+        Resources resources = getResources();
+        DisplayMetrics metrics = resources.getDisplayMetrics();
+        int width = Math.max(1, Math.min(metrics.widthPixels, MAX_WALL_BITMAP_SIDE));
+        int height = Math.max(1, Math.min(metrics.heightPixels, MAX_WALL_BITMAP_SIDE));
+        int density = metrics.densityDpi;
+        boolean motion = motionEnabled;
+        long request = wallpaperRequest;
+        pendingWork = WALL_WORKER.submit(() -> {
+            WallSnapshot snapshot = snapshot(resources, resId, flatColor, width, height, density);
+            File file = motion && (type == TYPE_GIF || type == TYPE_VIDEO) ? FileUtil.getWall(wall) : null;
+            GifDrawable gif = file != null && type == TYPE_GIF ? gif(file) : null;
+            if (gif != null) gif.pause();
+            App.post(() -> {
+                if (!isReady() || request != wallpaperRequest || wall != Setting.getWall()
+                        || type != Setting.getWallType()) {
+                    if (gif != null) gif.recycle();
+                    return;
+                }
+                binding.image.setImageDrawable(snapshot.bitmap() == null ? new ColorDrawable(snapshot.color())
+                        : new BitmapDrawable(resources, snapshot.bitmap()));
+                theme(snapshot.color());
+                if (gif != null) {
+                    drawable = gif;
+                    binding.image.setImageDrawable(gif);
+                }
+                pendingVideo = type == TYPE_VIDEO ? file : null;
+                if (resumed) resumeMotion();
+            });
+        });
+    }
+
+    private void cancelWork() {
+        ++wallpaperRequest;
+        if (pendingWork != null) pendingWork.cancel(false);
+        pendingWork = null;
     }
 
     private boolean isReady() {
-        return binding != null && binding.image != null && isAttachedToWindow();
+        return binding != null && isAttachedToWindow();
     }
 
     private void stop() {
-        if (player != null && player.isPlaying()) {
-            player.stop();
-            player.clearMediaItems();
-        }
+        pendingVideo = null;
         if (video != null) {
             video.setPlayer(null);
             video.setVisibility(GONE);
         }
+        if (player != null && player.getMediaItemCount() > 0) {
+            player.stop();
+            player.clearMediaItems();
+        }
         if (drawable != null) {
-            drawable.stop();
             drawable.recycle();
             drawable = null;
         }
     }
 
-    private void load() {
-        int wall = Setting.getWall();
-        int type = Setting.getWallType();
-        if (isBuiltInColor(wall, type)) loadColor(Setting.getBuiltInWallColor(wall));
-        else if (isBuiltInDesign(wall, type)) loadDesign(wall);
-        else if (isGreen(wall, type)) loadRes(R.drawable.wallpaper_1);
-        else if (motionEnabled && type == TYPE_VIDEO) loadVideo(FileUtil.getWall(wall));
-        else if (motionEnabled && type == TYPE_GIF) loadGif(FileUtil.getWall(wall));
-        else loadImage();
-    }
-
-    private void theme() {
-        int newColor = getWallColor();
-        int oldColor = Setting.getWallColor();
-        if (newColor == oldColor) return;
-        Setting.putWallColor(newColor);
+    private void theme(int color) {
+        if (color == Setting.getWallColor()) return;
+        Setting.putWallColor(color);
         if (Setting.getThemeColor() == 0) RefreshEvent.theme();
-    }
-
-    private void loadRes(int resId) {
-        if (!isReady()) return;
-        binding.image.setImageResource(resId);
-    }
-
-    private void loadColor(int color) {
-        if (!isReady()) return;
-        binding.image.setImageDrawable(new ColorDrawable(color));
-    }
-
-    private void loadDesign(int wall) {
-        if (!isReady()) return;
-        int resId = getDesignResId(wall);
-        if (resId != 0) binding.image.setImageResource(resId);
-        else loadColor(Setting.getBuiltInWallColor(wall));
-    }
-
-    private void loadImage() {
-        if (!isReady()) return;
-        Drawable cache = cache();
-        if (cache != null) binding.image.setImageDrawable(cache);
-        else loadPlaceholder();
-    }
-
-    private void loadPlaceholder() {
-        if (binding == null || binding.image == null) return;
-        int wall = Setting.getWall();
-        int type = Setting.getWallType();
-        Drawable cache = cache();
-        if (isBuiltInColor(wall, type)) binding.image.setImageDrawable(new ColorDrawable(Setting.getBuiltInWallColor(wall)));
-        else if (isBuiltInDesign(wall, type)) loadDesign(wall);
-        else if (isGreen(wall, type)) binding.image.setImageResource(R.drawable.wallpaper_1);
-        else if (cache != null) binding.image.setImageDrawable(cache);
-        else binding.image.setImageDrawable(new ColorDrawable(DEFAULT_WALL_COLOR));
     }
 
     private int getDesignResId(int wall) {
@@ -212,63 +216,70 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
         };
     }
 
-    private void loadVideo(File file) {
-        if (!isReady()) return;
-        ensurePlayer();
-        ensureVideoView();
-        video.setPlayer(player);
-        video.setVisibility(VISIBLE);
-        binding.image.setImageDrawable(cache());
-        player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)));
-        player.prepare();
-    }
-
-    private void loadGif(File file) {
-        if (!isReady()) return;
-        drawable = gif(file);
-        if (drawable != null) binding.image.setImageDrawable(drawable);
-        else loadImage();
-    }
-
-    private Drawable cache() {
-        File file = FileUtil.getWallCache();
-        Bitmap bitmap = file.exists() ? decodeWallBitmap(file) : null;
-        return bitmap == null ? null : new BitmapDrawable(getResources(), bitmap);
-    }
-
-    private Bitmap decodeWallBitmap(File file) {
-        try {
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inSampleSize = getWallSampleSize(bounds);
-            options.inPreferredConfig = Bitmap.Config.RGB_565;
-            options.inDither = true;
-            return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-        } catch (OutOfMemoryError | RuntimeException e) {
-            SpiderDebug.log("startup", "wall bitmap decode fallback file=%s error=%s", file.getName(), e.getClass().getSimpleName());
-            return null;
+    private void resumeMotion() {
+        if (drawable != null) drawable.start();
+        if (pendingVideo != null) {
+            ensurePlayer();
+            ensureVideoView();
+            video.setPlayer(player);
+            video.setVisibility(VISIBLE);
+            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(pendingVideo)));
+            pendingVideo = null;
+            player.prepare();
+        }
+        if (hasVideo()) {
+            video.setPlayer(player);
+            player.play();
         }
     }
 
-    private int getWallSampleSize(BitmapFactory.Options bounds) {
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        int reqWidth = Math.max(1, Math.min(metrics.widthPixels, MAX_WALL_BITMAP_SIDE));
-        int reqHeight = Math.max(1, Math.min(metrics.heightPixels, MAX_WALL_BITMAP_SIDE));
-        int sampleSize = 1;
-        while (bounds.outWidth / sampleSize > reqWidth || bounds.outHeight / sampleSize > reqHeight) sampleSize *= 2;
-        return sampleSize;
+    private static WallSnapshot snapshot(Resources resources, int resId, int flatColor,
+                                         int width, int height, int density) {
+        File file = resId == 0 ? FileUtil.getWallCache() : null;
+        WallKey key = new WallKey(resId, width, height, density,
+                file == null ? 0 : file.lastModified(), file == null ? 0 : file.length());
+        if (lastSnapshot != null && key.equals(lastSnapshot.key())) return lastSnapshot;
+        Bitmap bitmap = null;
+        int color = flatColor;
+        try {
+            if (resId != 0 || key.length() > 0) {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                decode(resources, resId, file, bounds);
+                if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inSampleSize = 1;
+                    while (bounds.outWidth / options.inSampleSize > width
+                            || bounds.outHeight / options.inSampleSize > height) options.inSampleSize *= 2;
+                    options.inPreferredConfig = Bitmap.Config.RGB_565;
+                    bitmap = decode(resources, resId, file, options);
+                    if (bitmap != null && resId == 0) color = paletteColor(bitmap);
+                }
+            }
+        } catch (OutOfMemoryError | RuntimeException e) {
+            SpiderDebug.log("startup", "wall bitmap fallback error=%s", e.getClass().getSimpleName());
+        }
+        WallSnapshot snapshot = new WallSnapshot(key, bitmap, color);
+        // A transient unreadable snapshot should be retried, not cached.
+        if (bitmap != null) lastSnapshot = snapshot;
+        return snapshot;
     }
 
-    private GifDrawable gif(File file) {
+    private static Bitmap decode(Resources resources, int resId, File file, BitmapFactory.Options options) {
+        if (resId != 0) return BitmapFactory.decodeResource(resources, resId, options);
+        return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+    }
+
+    private static GifDrawable gif(File file) {
         try {
             return new GifDrawable(file);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             return null;
         }
     }
+
+    private record WallKey(int resId, int width, int height, int density, long modified, long length) {}
+    private record WallSnapshot(WallKey key, Bitmap bitmap, int color) {}
 
     private void ensurePlayer() {
         if (player != null) return;
@@ -288,30 +299,8 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
         return player != null && video != null && video.getVisibility() == VISIBLE && player.getMediaItemCount() > 0;
     }
 
-    private int getWallColor() {
-        int wall = Setting.getWall();
-        int type = Setting.getWallType();
-        if (type == TYPE_RES && Setting.isBuiltInWall(wall)) return Setting.getBuiltInWallColor(wall);
-        if (isGreen(wall, type)) return GREEN_WALL_COLOR;
-        File file = FileUtil.getWallCache();
-        return file.exists() ? paletteColor(file) : DEFAULT_WALL_COLOR;
-    }
-
-    private int paletteColor(File file) {
-        Bitmap bitmap = decodeBitmap(file);
-        if (bitmap == null) return DEFAULT_WALL_COLOR;
+    private static int paletteColor(Bitmap bitmap) {
         Palette palette = Palette.from(bitmap).maximumColorCount(8).generate();
-        bitmap.recycle();
-        return swatchColor(palette);
-    }
-
-    private Bitmap decodeBitmap(File file) {
-        BitmapFactory.Options opts = new BitmapFactory.Options();
-        opts.inSampleSize = 8;
-        return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
-    }
-
-    private int swatchColor(Palette palette) {
         Palette.Swatch swatch = palette.getVibrantSwatch();
         if (swatch == null) swatch = palette.getDominantSwatch();
         return swatch != null ? swatch.getRgb() : DEFAULT_WALL_COLOR;
@@ -329,12 +318,6 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
         return type == TYPE_RES && wall == Setting.WALL_GREEN;
     }
 
-    private boolean isStaticBuiltInWall() {
-        int wall = Setting.getWall();
-        int type = Setting.getWallType();
-        return isBuiltInColor(wall, type) || isBuiltInDesign(wall, type) || isGreen(wall, type);
-    }
-
     @Override
     public void onCreate(@NonNull LifecycleOwner owner) {
         EventBus.getDefault().register(this);
@@ -342,14 +325,13 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
 
     @Override
     public void onResume(@NonNull LifecycleOwner owner) {
-        if (drawable != null) drawable.start();
-        if (!hasVideo()) return;
-        video.setPlayer(player);
-        player.play();
+        resumed = true;
+        resumeMotion();
     }
 
     @Override
     public void onPause(@NonNull LifecycleOwner owner) {
+        resumed = false;
         if (drawable != null) drawable.pause();
         if (!hasVideo()) return;
         video.setPlayer(null);
@@ -358,9 +340,10 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
 
     @Override
     public void onDestroy(@NonNull LifecycleOwner owner) {
-        removeCallbacks(refreshRunnable);
+        cancelWork();
         EventBus.getDefault().unregister(this);
-        if (drawable != null) drawable.recycle();
+        if (drawable != null && binding != null) binding.image.setImageDrawable(null);
+        stop();
         if (video != null) removeView(video);
         if (player != null) player.release();
         observerAdded = false;

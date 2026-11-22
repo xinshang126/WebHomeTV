@@ -5,7 +5,6 @@ import android.media.MediaCodecList;
 import android.os.Build;
 
 import androidx.media3.common.C;
-import androidx.media3.common.Effect;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaEdition;
 import androidx.media3.common.MediaItem;
@@ -642,25 +641,6 @@ public class ExoPlayerEngine implements PlayerEngine {
     @Override
     public Tracks getCurrentTracks() {
         return player.getCurrentTracks();
-    }
-
-    @Override
-    public boolean supportsVideoEffects() {
-        return true;
-    }
-
-    @Override
-    public void setVideoEffects(List<Effect> effects) {
-        if (SpiderDebug.isEnabled()) {
-            Format format = getVideoFormat();
-            SpiderDebug.log("lut-exo", "set effects=%d state=%d position=%d video=%s",
-                    effects == null ? 0 : effects.size(),
-                    player.getPlaybackState(),
-                    player.getCurrentPosition(),
-                    format == null ? "unknown" : format.width + "x" + format.height + "/" + format.sampleMimeType);
-        }
-        player.setVideoEffects(effects);
-        com.fongmi.android.tv.player.exo.ExoDiagnosticCollector.effects(player, effects);
     }
 
     @Override

@@ -2,7 +2,6 @@ package com.fongmi.android.tv.player.engine;
 
 import androidx.media3.common.C;
 import androidx.media3.common.ColorInfo;
-import androidx.media3.common.Effect;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaEdition;
 import androidx.media3.common.MediaMetadata;
@@ -15,7 +14,6 @@ import com.fongmi.android.tv.player.AudioPlaybackDiagnostics;
 import com.fongmi.android.tv.player.PlaybackRoute;
 import com.fongmi.android.tv.player.PlaybackResourceClassifier;
 import com.fongmi.android.tv.player.PlaybackTrace;
-import com.fongmi.android.tv.player.lut.MpvLutShader;
 
 import java.util.Collections;
 import java.util.List;
@@ -73,27 +71,6 @@ public interface PlayerEngine {
     boolean haveTrack(int type);
 
     Tracks getCurrentTracks();
-
-    default boolean supportsVideoEffects() {
-        return false;
-    }
-
-    default void setVideoEffects(List<Effect> effects) {
-    }
-
-    default boolean supportsNativeLut() {
-        return false;
-    }
-
-    default boolean supportsLut() {
-        return supportsVideoEffects() || supportsNativeLut();
-    }
-
-    default void setNativeLutShader(MpvLutShader shader) {
-    }
-
-    default void setNativeLutPreviewProgress(float progress) {
-    }
 
     default Format getVideoFormat() {
         return null;

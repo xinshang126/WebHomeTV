@@ -14,7 +14,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
-import androidx.media3.common.Effect;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaEdition;
 import androidx.media3.common.MediaItem;
@@ -24,7 +23,6 @@ import androidx.media3.common.Player;
 import androidx.media3.common.Timeline;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
-import androidx.media3.effect.ColorLut;
 import androidx.media3.ui.danmaku.DanmakuConfig;
 import androidx.media3.ui.danmaku.DanmakuController;
 import androidx.media3.mpvplayer.MpvPlayer;
@@ -71,14 +69,6 @@ import com.fongmi.android.tv.player.danmaku.LiveDanmakuMessage;
 import com.fongmi.android.tv.player.danmaku.LiveDanmakuMetrics;
 import com.fongmi.android.tv.player.danmaku.LiveDanmakuParser;
 import com.fongmi.android.tv.player.danmaku.LiveDanmakuWebSocketSession;
-import com.fongmi.android.tv.player.lut.DynamicLutEffect;
-import com.fongmi.android.tv.player.lut.LutEffectFactory;
-import com.fongmi.android.tv.player.lut.LutEligibility;
-import com.fongmi.android.tv.player.lut.LutPreset;
-import com.fongmi.android.tv.player.lut.LutSetting;
-import com.fongmi.android.tv.player.lut.LutStore;
-import com.fongmi.android.tv.player.lut.MpvLutShader;
-import com.fongmi.android.tv.player.lut.MpvLutShaderFactory;
 import com.fongmi.android.tv.player.mpv.MpvAutoController;
 import com.fongmi.android.tv.player.mpv.MpvAutoControlPolicy;
 import com.fongmi.android.tv.player.mpv.MpvAutoOutputPolicy;
@@ -127,7 +117,6 @@ import java.util.Map;
 
 public class PlayerManager implements ParseCallback {
 
-    public static final String RELOAD_LUT_WARMUP = "__webhtv_lut_warmup_reload__";
     private static final String NETWORK_GUARD_DEBUG = "EXO_NETWORK_GUARD";
 
     private static void logNetworkGuard(String message) {
@@ -144,13 +133,11 @@ public class PlayerManager implements ParseCallback {
     private static final long MPV_AUTO_OUTPUT_PROBE_INTERVAL_MS = 250;
     private static final int LOCAL_PROXY_MAX_RETRY = 2;
     private static final int MPV_AUTO_OUTPUT_PROBE_MAX_ATTEMPTS = 20;
-    private static final int LUT_WARMUP_RECOVERED_ERROR_REFRESH_THRESHOLD = 3;
     private static final long DANMAKU_FORCE_RELOAD_DEBOUNCE_MS = 10000;
     private static final long LIVE_DANMAKU_METRICS_INTERVAL_MS = 15000L;
     private static final long PLAYBACK_TELEMETRY_INTERVAL_MS = 5000L;
     private static final long MPV_FRAME_TIMING_LOG_INTERVAL_MS = 5000L;
     private static final long DISK_RANGE_GAP_TOLERANCE_MS = 2000L;
-    private static final long LUT_PREVIEW_FRAME_INTERVAL_MS = 16L;
     private static final float[] SPEED_PRESETS = new float[]{0.5f, 0.75f, 1f, 1.2f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 5f};
     private static final DecimalFormat SPEED_FORMAT = new DecimalFormat("0.##x");
 
@@ -159,7 +146,6 @@ public class PlayerManager implements ParseCallback {
     private final Runnable networkProtectionRunnable;
     private final Runnable playbackTelemetryRunnable;
     private final Callback callback;
-    private final DynamicLutEffect dynamicLutEffect;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
     private final BroadcastReceiver noisyReceiver;
     private final PlaybackBufferingTracker playbackBufferingTracker;
@@ -228,20 +214,8 @@ public class PlayerManager implements ParseCallback {
     private Object audioFocusRequest;
 
     private boolean initTrack;
-    private boolean videoEffectsActive;
-    private boolean videoEffectsDirty;
-    private boolean lutAppliedForItem;
-    private boolean lutApplyInProgress;
-    private boolean lutPipelineReadyForItem;
-    private boolean lutPipelinePrepareInProgress;
-    private boolean pendingLutPreview;
-    private boolean waitingLutBeforePlay;
     private boolean playWhenReady = true;
-    private boolean lutWarmupRecoveryActive;
-    private boolean lutWarmupRefreshRequested;
-    private boolean lutWarmupReloadPreviewPending;
     private boolean hardDecodeSwitchRetryArmed;
-    private boolean lutAllowed = true;
     private boolean mpvAutoOutputEvaluated;
     private boolean mpvAutoOutputFrameReady;
     private boolean mpvAutoOutputEvaluationScheduled;
@@ -262,8 +236,6 @@ public class PlayerManager implements ParseCallback {
     private int retry;
     private int localProxyRetry;
     private int prepareSeq;
-    private int lutApplySeq;
-    private int lutWarmupRecoveredErrors;
     private int mpvOutputEvaluationSeq;
     private int mpvAutoOutputProbeAttempts;
     private float userPlaybackSpeed = 1f;
@@ -324,7 +296,6 @@ public class PlayerManager implements ParseCallback {
         this.liveDanmakuBuffer = new LiveDanmakuBuffer();
         this.liveDanmakuMetrics = new LiveDanmakuMetrics();
         this.liveDanmakuBatcher = new LiveDanmakuBatcher(liveDanmakuBuffer, this::onLiveDanmakuBatch);
-        this.dynamicLutEffect = new DynamicLutEffect();
         this.audioFocusChangeListener = this::onNativeAudioFocusChanged;
         this.noisyReceiver = new BroadcastReceiver() {
             @Override
@@ -340,7 +311,6 @@ public class PlayerManager implements ParseCallback {
 
     public void release() {
         prepareSeq++;
-        lutApplySeq++;
         prepareTerminalRelease();
         resetNetworkProtectionSession("release");
         clearExoDecoderResourceRecovery(true);
@@ -371,16 +341,6 @@ public class PlayerManager implements ParseCallback {
         engine.release();
         engine = null;
         player = null;
-        videoEffectsActive = false;
-        videoEffectsDirty = false;
-        lutAppliedForItem = false;
-        lutApplyInProgress = false;
-        lutPipelineReadyForItem = false;
-        lutPipelinePrepareInProgress = false;
-        pendingLutPreview = false;
-        waitingLutBeforePlay = false;
-        lutWarmupReloadPreviewPending = false;
-        clearLutWarmupRecovery();
         playbackBufferingTracker.reset();
         playbackTrace.clear();
         lastLoggedRouteTraceId = PlaybackTrace.NONE;
@@ -418,37 +378,11 @@ public class PlayerManager implements ParseCallback {
     private void onPlaybackTimeout() {
         completeIjkBufferManagedReload(
                 false, "timeout", SystemClock.elapsedRealtime(), true);
-        if (retryLutWarmupByRefresh("timeout")) return;
         if (retryMpvDv7P81FirstFrameTimeout()) return;
         if (retryMpvVulkanBackendTimeout()) return;
         if (retryMpvAutoVulkanToOpenGl("auto-vulkan-first-frame-timeout")) return;
         if (retryExoDv7FirstFrameTimeout()) return;
         callback.onError(ResUtil.getString(R.string.error_play_timeout));
-    }
-
-    private void resetLutRuntimeState(String reason, boolean clearEngineEffects) {
-        lutApplySeq++;
-        if (clearEngineEffects && engine != null && engine.supportsNativeLut()) {
-            safeSetNativeLut(null, reason + "_reset");
-        } else if (clearEngineEffects && engine != null && videoEffectsActive) {
-            try {
-                engine.setVideoEffects(Collections.emptyList());
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "clear effects before reset reason=%s", reason);
-            } catch (Throwable e) {
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "clear effects before reset failed reason=%s error=%s", reason, causeChain(e));
-            }
-        }
-        dynamicLutEffect.clear();
-        videoEffectsActive = false;
-        videoEffectsDirty = false;
-        lutAppliedForItem = false;
-        lutApplyInProgress = false;
-        lutPipelineReadyForItem = false;
-        lutPipelinePrepareInProgress = false;
-        pendingLutPreview = false;
-        waitingLutBeforePlay = false;
-        lutWarmupReloadPreviewPending = false;
-        clearLutWarmupRecovery();
     }
 
     public Player getPlayer() {
@@ -773,49 +707,6 @@ public class PlayerManager implements ParseCallback {
         return playerType;
     }
 
-    public String getLutText() {
-        return LutSetting.getButtonText();
-    }
-
-    public void setLutAllowed(boolean allowed) {
-        if (lutAllowed == allowed) return;
-        lutAllowed = allowed;
-        if (!allowed) resetLutRuntimeState("lut_disallowed", true);
-    }
-
-    public String getLutUnavailableReason() {
-        return LutEligibility.getUnavailableReason(engine, spec);
-    }
-
-    public boolean selectLut(@Nullable LutPreset preset, boolean preview) {
-        boolean autoSwitchMpvToGpu = preset != null
-                && MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO
-                && engine instanceof MpvPlayerEngine mpv
-                && mpv.isSurfaceDirect();
-        if (preset != null) {
-            String reason = autoSwitchMpvToGpu
-                    ? LutEligibility.getUnavailableReason(engine, spec, true)
-                    : getLutUnavailableReason();
-            if (!TextUtils.isEmpty(reason)) {
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-ui", "reject preset=%s reason=%s", preset.getId(), reason);
-                Notify.show(reason);
-                return false;
-            }
-        }
-        LutSetting.select(preset);
-        callback.onPlayerRenderRequired();
-        if (autoSwitchMpvToGpu) {
-            if (SpiderDebug.isEnabled()) {
-                SpiderDebug.log("lut-mpv", "auto output switch surface-direct -> gpu preset=%s preview=%s",
-                        preset.getId(), preview);
-            }
-            return rebuildAndRestartMpv(false, "auto-lut-selected");
-        }
-        if (preset != null && preview) applyLutPreview(true);
-        else applyLut(true);
-        return true;
-    }
-
     public boolean isIjk() {
         return playerType == PlayerSetting.IJK;
     }
@@ -847,13 +738,6 @@ public class PlayerManager implements ParseCallback {
 
     public boolean isExo() {
         return playerType == PlayerSetting.EXO;
-    }
-
-    public boolean requiresTextureRenderForLut() {
-        return isExo()
-                && LutSetting.isEnabled()
-                && canWarmLutPipeline()
-                && TextUtils.isEmpty(getLutUnavailableReason());
     }
 
     public boolean isNativePlayer() {
@@ -1318,20 +1202,12 @@ public class PlayerManager implements ParseCallback {
 
     public void clear() {
         prepareSeq++;
-        lutApplySeq++;
         clearExoDecoderResourceRecovery(true);
         resetNetworkProtectionSession("clear");
         resetMpvOutputRuntime();
         spec = null;
         clearPendingSwitchRestore();
         clearDanmaku("clear");
-        lutAppliedForItem = false;
-        lutApplyInProgress = false;
-        lutPipelineReadyForItem = false;
-        lutPipelinePrepareInProgress = false;
-        pendingLutPreview = false;
-        waitingLutBeforePlay = false;
-        clearLutWarmupRecovery();
         endPlaybackTelemetrySession("clear");
         playbackBufferingTracker.reset();
         clearPlaybackAutoContext();
@@ -1369,7 +1245,6 @@ public class PlayerManager implements ParseCallback {
         boolean resetVideoSurface = playerType == PlayerSetting.EXO && next == PlayerEngine.HARD;
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         prepareSeq++;
-        resetLutRuntimeState("switch_decode_fresh", true);
         stopNativeAudioSession();
         engine.release();
         spec = freshSpec;
@@ -1394,7 +1269,6 @@ public class PlayerManager implements ParseCallback {
         boolean resetVideoSurface = playerType == PlayerSetting.EXO && next == PlayerEngine.HARD;
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         prepareSeq++;
-        resetLutRuntimeState("switch_decode_result", true);
         stopNativeAudioSession();
         stopParse();
         engine.release();
@@ -1440,7 +1314,6 @@ public class PlayerManager implements ParseCallback {
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         int decode = engine.getDecode();
         prepareSeq++;
-        resetLutRuntimeState("switch_player_fresh", true);
         stopNativeAudioSession();
         engine.release();
         playerType = type;
@@ -1467,7 +1340,6 @@ public class PlayerManager implements ParseCallback {
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         int decode = engine.getDecode();
         prepareSeq++;
-        resetLutRuntimeState("switch_player_result", true);
         stopNativeAudioSession();
         stopParse();
         engine.release();
@@ -1509,7 +1381,6 @@ public class PlayerManager implements ParseCallback {
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         int decode = engine.getDecode();
         prepareSeq++;
-        resetLutRuntimeState("switch_player", true);
         stopNativeAudioSession();
         engine.release();
         playerType = type;
@@ -1539,14 +1410,6 @@ public class PlayerManager implements ParseCallback {
         stopNativeAudioSession();
         player = engine.rebuild(listener);
         restoreIjkStagedBufferConfig();
-        videoEffectsActive = false;
-        videoEffectsDirty = false;
-        lutAppliedForItem = false;
-        lutApplyInProgress = false;
-        lutPipelineReadyForItem = false;
-        lutPipelinePrepareInProgress = false;
-        pendingLutPreview = false;
-        waitingLutBeforePlay = false;
         callback.onPlayerRebuild(player, resetVideoSurface);
     }
 
@@ -3365,7 +3228,6 @@ public class PlayerManager implements ParseCallback {
             App.removeCallbacks(runnable);
             App.removeCallbacks(networkProtectionRunnable);
             resetNetworkProtectionSession("ijk-runtime-fallback");
-            resetLutRuntimeState("ijk_runtime_fallback", true);
             stopNativeAudioSession();
             stopParse();
             engine.release();
@@ -4715,8 +4577,7 @@ public class PlayerManager implements ParseCallback {
         boolean autoDirectEligible = MpvAutoOutputPolicy.canStartSurfaceDirect(
                 engine.isHard(),
                 Util.isLeanback(),
-                videoEffectsActive || videoEffectsDirty || MpvPerformanceSetting.isInterpolation()
-                        || lutAllowed && LutSetting.isEnabled(),
+                MpvPerformanceSetting.isInterpolation(),
                 MpvConfigStore.hasGpuVideoProcessing());
         if (mpvAutoGpuPinnedForSession
                 && MpvPerformanceSetting.getOutputMode() == MpvPerformanceSetting.OUTPUT_AUTO) {
@@ -4814,7 +4675,7 @@ public class PlayerManager implements ParseCallback {
         boolean externalSubtitleActive = spec != null && spec.getSubs() != null && !spec.getSubs().isEmpty();
         boolean earlyEvaluation = false;
         boolean subtitleActive = externalSubtitleActive || mpvExplicitSubtitlePreference;
-        boolean lutOrFilterActive = videoEffectsActive || videoEffectsDirty || lutAllowed && LutSetting.isEnabled() || MpvPerformanceSetting.isInterpolation();
+        boolean filterActive = MpvPerformanceSetting.isInterpolation();
         boolean customGpuProcessing = MpvConfigStore.hasGpuVideoProcessing();
         boolean dv7Hdr10FallbackEnabled = dolbyVision
                 && videoDetails.dolbyVisionProfile() == 7
@@ -4856,7 +4717,7 @@ public class PlayerManager implements ParseCallback {
                 && mpv.isDv7Hdr10Active();
         MpvAutoOutputPolicy.Decision decision = MpvAutoOutputPolicy.evaluate(
                 width, height, engine.isHard(),
-                Util.isLeanback(), lutOrFilterActive, customGpuProcessing,
+                Util.isLeanback(), filterActive, customGpuProcessing,
                 dolbyVisionSupport,
                 dolbyVision ? videoDetails.dolbyVisionProfile() : C.INDEX_UNSET,
                 dv7Hdr10FallbackEnabled,
@@ -4887,7 +4748,7 @@ public class PlayerManager implements ParseCallback {
         mpvAutoOutputEvaluated = true;
         boolean currentlyDirect = isMpvSurfaceDirect();
         MpvAutoOutputPolicy.Transition transition = MpvAutoOutputPolicy.transition(decision.eligible(), currentlyDirect);
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "auto decision eligible=%s transition=%s reason=%s renderAction=%s renderReason=%s size=%dx%d tracksReady=%s early=%s subtitle=%s lutOrFilter=%s customGpu=%s dvProfile=%d dvSupport=%s direct=%s gpuPinned=%s autoVulkan=%s attempts=%d", decision.eligible(), transition, decision.reason(), renderDecision.action(), renderDecision.reason(), width, height, tracksReady, earlyEvaluation, subtitleActive, lutOrFilterActive, customGpuProcessing, dolbyVisionProfile, dolbyVisionSupport, currentlyDirect, mpvAutoGpuPinnedForSession, mpvAutoVulkanPinnedForItem, mpvAutoOutputProbeAttempts);
+        if (SpiderDebug.isEnabled()) SpiderDebug.log("mpv-output", "auto decision eligible=%s transition=%s reason=%s renderAction=%s renderReason=%s size=%dx%d tracksReady=%s early=%s subtitle=%s filter=%s customGpu=%s dvProfile=%d dvSupport=%s direct=%s gpuPinned=%s autoVulkan=%s attempts=%d", decision.eligible(), transition, decision.reason(), renderDecision.action(), renderDecision.reason(), width, height, tracksReady, earlyEvaluation, subtitleActive, filterActive, customGpuProcessing, dolbyVisionProfile, dolbyVisionSupport, currentlyDirect, mpvAutoGpuPinnedForSession, mpvAutoVulkanPinnedForItem, mpvAutoOutputProbeAttempts);
         boolean transitionRequested = dv7HandlingChanged || dv8HandlingChanged || enableAutoVulkan
                 || transition == MpvAutoOutputPolicy.Transition.ENTER_SURFACE_DIRECT
                 || transition == MpvAutoOutputPolicy.Transition.LEAVE_SURFACE_DIRECT;
@@ -4934,7 +4795,7 @@ public class PlayerManager implements ParseCallback {
                                 PlaybackTelemetry.DecisionInput.bool("tracks_ready", tracksReady, PlaybackAutoContext.ValueSource.PLAYER_CALLBACK, PlaybackAutoContext.Confidence.HIGH),
                                 PlaybackTelemetry.DecisionInput.bool("early_evaluation", earlyEvaluation, PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
                                 PlaybackTelemetry.DecisionInput.bool("subtitle_active", subtitleActive, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
-                                PlaybackTelemetry.DecisionInput.bool("lut_or_filter", lutOrFilterActive, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
+                                PlaybackTelemetry.DecisionInput.bool("video_filter_active", filterActive, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
                                 PlaybackTelemetry.DecisionInput.bool("custom_gpu", customGpuProcessing, PlaybackAutoContext.ValueSource.PLAYBACK_REQUEST, PlaybackAutoContext.Confidence.HIGH),
                                 PlaybackTelemetry.DecisionInput.bool("currently_direct", currentlyDirect, PlaybackAutoContext.ValueSource.NATIVE_RUNTIME, PlaybackAutoContext.Confidence.MEDIUM),
                                 PlaybackTelemetry.DecisionInput.bool("eligible", decision.eligible(), PlaybackAutoContext.ValueSource.PLAYER_MANAGER, PlaybackAutoContext.Confidence.HIGH),
@@ -5301,9 +5162,7 @@ public class PlayerManager implements ParseCallback {
         resetNetworkProtectionSession("new-media");
         App.removeCallbacks(runnable);
         setDanmakus(spec.getDanmakus());
-        prepareLutPipeline();
         initTrack = false;
-        waitingLutBeforePlay = false;
         applySubtitleStyle();
         playbackTrace.mark(PlaybackTrace.Stage.PREPARE, "player=" + playerType + " decode=" + engine.getDecode());
         long initialPositionMs = pendingInitialStartPositionMs;
@@ -5460,463 +5319,6 @@ public class PlayerManager implements ParseCallback {
         if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "reject drm for mpv spec=%s drm=%s", debugSpec(), spec.getDrm().getType());
         callback.onError(ResUtil.getString(R.string.error_play_mpv_drm_unsupported));
         return true;
-    }
-
-    private void prepareLutPipeline() {
-        lutApplySeq++;
-        lutAppliedForItem = false;
-        lutApplyInProgress = false;
-        lutPipelineReadyForItem = false;
-        lutPipelinePrepareInProgress = false;
-        pendingLutPreview = false;
-        dynamicLutEffect.clear();
-        clearLutWarmupRecovery();
-        if (videoEffectsDirty) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "rebuild clean player before media item reason=prepare spec=%s", debugSpec());
-            rebuildPlayer();
-        }
-        if (shouldPreinstallDynamicLutPipeline()
-                && safeSetVideoEffects(dynamicLutEffect.effects(), "prepare_dynamic_passthrough")) {
-            lutPipelineReadyForItem = true;
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "preinstalled dynamic pipeline before playback spec=%s", debugSpec());
-            return;
-        }
-        clearVideoEffects("prepare");
-    }
-
-    private boolean shouldPreinstallDynamicLutPipeline() {
-        return LutSetting.isEnabled()
-                && engine != null
-                && !engine.supportsNativeLut()
-                && canWarmLutPipeline()
-                && TextUtils.isEmpty(getLutUnavailableReason());
-    }
-
-    private boolean shouldPrepareLutBeforePlay() {
-        return false;
-    }
-
-    public void applyLut(boolean notify) {
-        applyLut(notify, false);
-    }
-
-    public void applyLutPreview(boolean notify) {
-        applyLut(notify, true);
-    }
-
-    private void applyLut(boolean notify, boolean preview) {
-        if (engine == null) return;
-        int seq = ++lutApplySeq;
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "request seq=%d notify=%s preview=%s enabled=%s preset=%s state=%s videoFormat=%s tracksEmpty=%s active=%s dirty=%s applied=%s applying=%s pendingPreview=%s", seq, notify, preview, LutSetting.isEnabled(), LutSetting.getPresetId(), stateName(player.getPlaybackState()), engine.getVideoFormat(), engine.getCurrentTracks() == null || engine.getCurrentTracks().isEmpty(), videoEffectsActive, videoEffectsDirty, lutAppliedForItem, lutApplyInProgress, pendingLutPreview);
-        if (!lutAllowed) {
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects("disallowed");
-            completeLutBeforePlay("disallowed");
-            return;
-        }
-        if (!LutSetting.isEnabled()) {
-            if (waitingLutBeforePlay && shouldWaitForVideoFormat()) {
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "wait video format before neutral start reason=off state=%s spec=%s", stateName(player.getPlaybackState()), debugSpec());
-                return;
-            }
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects("off");
-            completeLutBeforePlay("off");
-            return;
-        }
-        LutPreset preset = LutStore.find(LutSetting.getPresetId());
-        if (preset == null) {
-            if (waitingLutBeforePlay && shouldWaitForVideoFormat()) {
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "wait video format before neutral start reason=missing state=%s spec=%s", stateName(player.getPlaybackState()), debugSpec());
-                return;
-            }
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects("missing");
-            completeLutBeforePlay("missing");
-            if (notify) Notify.show(R.string.lut_missing);
-            return;
-        }
-        String reason = getLutUnavailableReason();
-        if (!TextUtils.isEmpty(reason)) {
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects(reason);
-            completeLutBeforePlay(reason);
-            if (notify) Notify.show(reason);
-            return;
-        }
-        if (shouldWaitForLutFormat()) {
-            lutAppliedForItem = false;
-            lutApplyInProgress = false;
-            if (notify || preview) pendingLutPreview = preview;
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "wait video format notify=%s preview=%s state=%s spec=%s", notify, preview, stateName(player.getPlaybackState()), debugSpec());
-            return;
-        }
-        if (notify || preview) pendingLutPreview = preview;
-        if (engine.supportsNativeLut()) {
-            applyNativeLut(seq, preset, notify, preview);
-            return;
-        }
-        if (!ensureLutPipelineReadyForCurrentItem("request")) {
-            return;
-        }
-        lutAppliedForItem = false;
-        lutApplyInProgress = true;
-        pendingLutPreview = false;
-        int strength = LutSetting.getStrength();
-        int previewSeconds = LutSetting.getPreviewSeconds();
-        Task.execute(() -> {
-            long start = System.currentTimeMillis();
-            try {
-                ColorLut colorLut = LutEffectFactory.createColorLut(preset, strength);
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "create dynamic preset=%s format=%s strength=%d preview=%s seconds=%d cost=%dms", preset.getId(), preset.getFormat(), strength, preview, previewSeconds, System.currentTimeMillis() - start);
-                App.post(() -> applyLutColor(seq, colorLut, notify, preview, previewSeconds));
-            } catch (Throwable e) {
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "create failed preset=%s strength=%d error=%s", preset.getId(), strength, causeChain(e));
-                App.post(() -> {
-                    if (seq != lutApplySeq || engine == null) return;
-                    lutApplyInProgress = false;
-                    setNeutralVideoEffects("error");
-                    completeLutBeforePlay("error");
-                    if (notify) Notify.show(R.string.lut_apply_failed);
-                });
-            }
-        });
-    }
-
-    private void applyNativeLut(int seq, LutPreset preset, boolean notify, boolean preview) {
-        lutAppliedForItem = false;
-        lutApplyInProgress = true;
-        pendingLutPreview = false;
-        int strength = LutSetting.getStrength();
-        int previewSeconds = LutSetting.getPreviewSeconds();
-        Task.execute(() -> {
-            long start = System.currentTimeMillis();
-            try {
-                MpvLutShader shader = MpvLutShaderFactory.create(preset, strength, preview);
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "create shader preset=%s format=%s strength=%d preview=%s seconds=%d clock=monotonic cost=%dms", preset.getId(), preset.getFormat(), strength, preview, previewSeconds, System.currentTimeMillis() - start);
-                App.post(() -> applyNativeLutShader(seq, shader, notify, preview));
-            } catch (Throwable e) {
-                if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "create shader failed preset=%s strength=%d error=%s", preset.getId(), strength, causeChain(e));
-                App.post(() -> {
-                    if (seq != lutApplySeq || engine == null) return;
-                    lutApplyInProgress = false;
-                    setNeutralVideoEffects("native_error");
-                    completeLutBeforePlay("native_error");
-                    if (notify) Notify.show(R.string.lut_apply_failed);
-                });
-            }
-        });
-    }
-
-    private void applyNativeLutShader(int seq, MpvLutShader shader, boolean notify, boolean preview) {
-        if (seq != lutApplySeq || engine == null) return;
-        String reason = getLutUnavailableReason();
-        if (!TextUtils.isEmpty(reason)) {
-            lutApplyInProgress = false;
-            setNeutralVideoEffects(reason);
-            completeLutBeforePlay(reason);
-            if (notify) Notify.show(reason);
-            return;
-        }
-        if (safeSetNativeLut(shader, preview ? "preview_native" : "apply_native")) {
-            lutAppliedForItem = true;
-            pendingLutPreview = false;
-            if (preview) scheduleNativeLutPreviewCommit(seq);
-        } else {
-            lutAppliedForItem = false;
-        }
-        lutApplyInProgress = false;
-        completeLutBeforePlay(preview ? "preview_native" : "apply_native");
-    }
-
-    private void scheduleNativeLutPreviewCommit(int seq) {
-        int holdMs = Math.max(1, LutSetting.getPreviewSeconds()) * 1000;
-        long slideStartMs = SystemClock.elapsedRealtime() + holdMs;
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "preview scheduled seq=%d hold=%d slide=%d", seq, holdMs, MpvLutShaderFactory.PREVIEW_SLIDE_MS);
-        App.post(() -> updateNativeLutPreview(seq, slideStartMs), holdMs);
-    }
-
-    private void updateNativeLutPreview(int seq, long slideStartMs) {
-        if (seq != lutApplySeq || engine == null || !engine.supportsNativeLut()) return;
-        if (!lutAllowed || !LutSetting.isEnabled()) return;
-        long elapsedMs = Math.max(0, SystemClock.elapsedRealtime() - slideStartMs);
-        float progress = Math.min(1f, elapsedMs / (float) MpvLutShaderFactory.PREVIEW_SLIDE_MS);
-        engine.setNativeLutPreviewProgress(progress);
-        if (progress < 1f) {
-            App.post(() -> updateNativeLutPreview(seq, slideStartMs), LUT_PREVIEW_FRAME_INTERVAL_MS);
-            return;
-        }
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "preview completed seq=%d elapsed=%d", seq, elapsedMs);
-    }
-
-    private void applyLutColor(int seq, ColorLut colorLut, boolean notify, boolean preview, int previewSeconds) {
-        if (seq != lutApplySeq || engine == null) return;
-        String reason = getLutUnavailableReason();
-        if (!TextUtils.isEmpty(reason)) {
-            dynamicLutEffect.clear();
-            lutApplyInProgress = false;
-            setNeutralVideoEffects(reason);
-            completeLutBeforePlay(reason);
-            if (notify) Notify.show(reason);
-            return;
-        }
-        if (shouldWaitForLutFormat()) {
-            lutAppliedForItem = false;
-            lutApplyInProgress = false;
-            if (notify || preview) pendingLutPreview = preview;
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "wait video format before set effects preview=%s spec=%s", preview, debugSpec());
-            return;
-        }
-        dynamicLutEffect.set(colorLut, preview, previewSeconds);
-        boolean applied = videoEffectsActive;
-        if (applied) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "updated dynamic pipeline in place reason=%s preview=%s", preview ? "preview_dynamic" : "apply_dynamic", preview);
-        } else {
-            applied = safeSetVideoEffects(dynamicLutEffect.effects(), preview ? "preview_dynamic" : "apply_dynamic");
-        }
-        if (applied) {
-            lutAppliedForItem = true;
-            pendingLutPreview = false;
-        } else {
-            lutAppliedForItem = false;
-        }
-        lutApplyInProgress = false;
-        completeLutBeforePlay(preview ? "preview" : "apply");
-    }
-
-    private void applyLutForCurrentItem() {
-        if (engine == null) return;
-        if (!lutAllowed) {
-            if (lutAppliedForItem && !videoEffectsActive && !waitingLutBeforePlay) return;
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects("auto_disallowed");
-            completeLutBeforePlay("auto_disallowed");
-            return;
-        }
-        if (!LutSetting.isEnabled()) {
-            if (lutAppliedForItem && !videoEffectsActive && !waitingLutBeforePlay) return;
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects("auto_off");
-            completeLutBeforePlay("auto_off");
-            return;
-        }
-        String reason = getLutUnavailableReason();
-        if (!TextUtils.isEmpty(reason)) {
-            lutAppliedForItem = true;
-            lutApplyInProgress = false;
-            pendingLutPreview = false;
-            lutWarmupReloadPreviewPending = false;
-            setNeutralVideoEffects(reason);
-            completeLutBeforePlay(reason);
-            return;
-        }
-        if (shouldWaitForLutFormat()) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "wait video format before auto apply state=%s spec=%s", stateName(player.getPlaybackState()), debugSpec());
-            return;
-        }
-        if (lutApplyInProgress) return;
-        if (lutAppliedForItem) return;
-        if (!ensureLutPipelineReadyForCurrentItem("auto")) return;
-        boolean preview = pendingLutPreview || lutWarmupReloadPreviewPending;
-        lutWarmupReloadPreviewPending = false;
-        applyLut(false, preview);
-    }
-
-    private void completeLutBeforePlay(String reason) {
-        if (!waitingLutBeforePlay || player == null) return;
-        waitingLutBeforePlay = false;
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "start playback after lut decision reason=%s active=%s dirty=%s", reason, videoEffectsActive, videoEffectsDirty);
-        player.play();
-    }
-
-    private boolean ensureLutPipelineReadyForCurrentItem(String reason) {
-        if (lutPipelineReadyForItem) return true;
-        if (lutPipelinePrepareInProgress) return false;
-        if (!canWarmLutPipeline()) return true;
-        if (shouldWaitForVideoFormat()) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "wait video format before pipeline warmup reason=%s state=%s spec=%s", reason, stateName(player.getPlaybackState()), debugSpec());
-            return false;
-        }
-        String unavailable = getLutUnavailableReason();
-        if (!TextUtils.isEmpty(unavailable)) return true;
-        return prepareLutPipelineForCurrentItem(reason);
-    }
-
-    private boolean prepareLutPipelineForCurrentItem(String reason) {
-        if (spec == null || engine == null || player == null) return true;
-        lutPipelinePrepareInProgress = true;
-        lutAppliedForItem = false;
-        lutApplyInProgress = false;
-        dynamicLutEffect.clear();
-        long position = Math.max(0, getPosition());
-        boolean playWhenReady = player.getPlayWhenReady();
-        float speed = getSpeed();
-        if (!safeSetVideoEffects(dynamicLutEffect.effects(), reason + "_prepare_dynamic_passthrough")) {
-            lutPipelinePrepareInProgress = false;
-            return true;
-        }
-        lutPipelineReadyForItem = true;
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "prepare current item with effects reason=%s position=%d play=%s spec=%s", reason, position, playWhenReady, debugSpec());
-        startLutWarmupRecovery();
-        engine.restart(spec.checkUa(), position, playWhenReady);
-        if (speed != 1f) setSpeed(speed);
-        lutPipelinePrepareInProgress = false;
-        return false;
-    }
-
-    private void startLutWarmupRecovery() {
-        lutWarmupRecoveryActive = true;
-        lutWarmupRefreshRequested = false;
-        lutWarmupRecoveredErrors = 0;
-    }
-
-    private void clearLutWarmupRecovery() {
-        lutWarmupRecoveryActive = false;
-        lutWarmupRefreshRequested = false;
-        lutWarmupRecoveredErrors = 0;
-    }
-
-    private boolean retryLutWarmupByRefresh(String reason) {
-        if (!lutWarmupRecoveryActive || lutWarmupRefreshRequested || !LutSetting.isEnabled()) return false;
-        lutWarmupRefreshRequested = true;
-        lutWarmupRecoveryActive = false;
-        lutWarmupReloadPreviewPending = true;
-        App.removeCallbacks(runnable);
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "request playback refresh after warmup failure reason=%s errors=%d spec=%s", reason, lutWarmupRecoveredErrors, debugSpec());
-        callback.onReload(RELOAD_LUT_WARMUP);
-        return true;
-    }
-
-    private boolean retryLutWarmupByRefresh(PlayerEngine.ErrorAction action, PlaybackException e) {
-        if (!lutWarmupRecoveryActive || lutWarmupRefreshRequested || !LutSetting.isEnabled()) return false;
-        if (action == PlayerEngine.ErrorAction.RECOVERED && ++lutWarmupRecoveredErrors < LUT_WARMUP_RECOVERED_ERROR_REFRESH_THRESHOLD) return false;
-        if (action != PlayerEngine.ErrorAction.RECOVERED && action != PlayerEngine.ErrorAction.FATAL && action != PlayerEngine.ErrorAction.RELOAD) return false;
-        return retryLutWarmupByRefresh("error_" + e.errorCode + "_" + action);
-    }
-
-    private boolean shouldWaitForLutFormat() {
-        if (engine == null || !LutSetting.isEnabled()) return false;
-        return shouldWaitForVideoFormat();
-    }
-
-    private boolean shouldWaitForVideoFormat() {
-        if (engine == null) return false;
-        Format currentFormat = engine.getVideoFormat();
-        if (isUsableVideoFormat(currentFormat)) return false;
-        Tracks tracks = engine.getCurrentTracks();
-        if (tracks == null || tracks.isEmpty()) return true;
-        boolean hasVideo = false;
-        boolean hasUsableFormat = false;
-        for (Tracks.Group group : tracks.getGroups()) {
-            if (group.getType() != C.TRACK_TYPE_VIDEO) continue;
-            hasVideo = true;
-            for (int i = 0; i < group.length; i++) {
-                if (isUsableVideoFormat(group.getTrackFormat(i))) {
-                    hasUsableFormat = true;
-                    break;
-                }
-            }
-            if (hasUsableFormat) break;
-        }
-        return hasVideo && !hasUsableFormat;
-    }
-
-    private boolean isUsableVideoFormat(Format format) {
-        if (format == null) return false;
-        return !TextUtils.isEmpty(format.sampleMimeType) || !TextUtils.isEmpty(format.codecs) || format.colorInfo != null || format.width > 0 || format.height > 0;
-    }
-
-    private void clearVideoEffects(String reason) {
-        dynamicLutEffect.clear();
-        if (engine != null && engine.supportsNativeLut()) {
-            safeSetNativeLut(null, reason);
-            return;
-        }
-        safeSetVideoEffects(Collections.emptyList(), reason);
-    }
-
-    private void setNeutralVideoEffects(String reason) {
-        dynamicLutEffect.clear();
-        if (engine != null && engine.supportsNativeLut()) {
-            safeSetNativeLut(null, reason);
-            return;
-        }
-        if (canKeepWarmNeutralEffects()) safeSetVideoEffects(dynamicLutEffect.effects(), reason + "_dynamic_passthrough");
-        else clearVideoEffects(reason);
-    }
-
-    private boolean canKeepWarmNeutralEffects() {
-        if (!LutSetting.isEnabled()) return false;
-        if (!canWarmLutPipeline()) return false;
-        if (shouldWaitForVideoFormat()) return false;
-        return TextUtils.isEmpty(getLutUnavailableReason());
-    }
-
-    private boolean canWarmLutPipeline() {
-        if (!lutAllowed) return false;
-        if (engine == null || !engine.supportsVideoEffects()) return false;
-        if (spec != null && spec.getDrm() != null) return false;
-        if (PlayerSetting.isTunnel()) return false;
-        if (engine.getDecode() == PlayerEngine.SOFT) return false;
-        if (PlayerSetting.isVideoPrefer()) return false;
-        return true;
-    }
-
-    private boolean safeSetVideoEffects(List<Effect> effects, String reason) {
-        if (engine == null) return false;
-        boolean empty = effects == null || effects.isEmpty();
-        if (empty && !videoEffectsActive) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "skip clear effects reason=%s", reason);
-            return false;
-        }
-        if (!empty && videoEffectsActive) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "reuse active effects reason=%s", reason);
-            return true;
-        }
-        try {
-            engine.setVideoEffects(empty ? Collections.emptyList() : effects);
-            if (empty) {
-                videoEffectsActive = false;
-            } else {
-                videoEffectsActive = true;
-                videoEffectsDirty = true;
-            }
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "set effects=%d reason=%s active=%s dirty=%s", empty ? 0 : effects.size(), reason, videoEffectsActive, videoEffectsDirty);
-            return true;
-        } catch (Throwable e) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "set effects failed reason=%s error=%s", reason, causeChain(e));
-            return false;
-        }
-    }
-
-    private boolean safeSetNativeLut(MpvLutShader shader, String reason) {
-        if (engine == null || !engine.supportsNativeLut()) return false;
-        try {
-            engine.setNativeLutShader(shader);
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "set shader=%s reason=%s", shader == null ? "none" : shader.diagnostics(), reason);
-            return true;
-        } catch (Throwable e) {
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("lut-mpv", "set shader failed reason=%s error=%s", reason, causeChain(e));
-            return false;
-        }
     }
 
     private void setDanmakus(List<Danmaku> items) {
@@ -6986,7 +6388,6 @@ public class PlayerManager implements ParseCallback {
         resetNetworkProtectionSession("rtsp-live-rebuild");
         setDanmakus(spec.getDanmakus());
         initTrack = false;
-        waitingLutBeforePlay = false;
         playWhenReady = wasPlayWhenReady;
         applySubtitleStyle();
         PlaybackTrace.log("exo-rtsp-live", playbackTrace.current(),
@@ -7439,9 +6840,6 @@ public class PlayerManager implements ParseCallback {
 
         void onReload(String msg);
 
-        default void onPlayerRenderRequired() {
-        }
-
         default void onPlayerOutputPending() {
         }
 
@@ -7497,8 +6895,6 @@ public class PlayerManager implements ParseCallback {
                 playbackTrace.mark(PlaybackTrace.Stage.READY, "player=" + playerType);
                 markStartupCompletion(true, getCurrentTracks());
                 hardDecodeSwitchRetryArmed = false;
-                clearLutWarmupRecovery();
-                applyLutForCurrentItem();
                 scheduleNetworkProtection(0);
             } else if (state == Player.STATE_BUFFERING) {
                 App.removeCallbacks(networkProtectionRunnable);
@@ -7571,7 +6967,6 @@ public class PlayerManager implements ParseCallback {
             videoSize = size;
             publishPlaybackAutoContext(true);
             publishPlaybackTelemetry();
-            applyLutForCurrentItem();
             scheduleMpvAutoOutputEvaluation();
         }
 
@@ -7591,7 +6986,6 @@ public class PlayerManager implements ParseCallback {
             }
             markStartupCompletion(player != null && player.getPlaybackState() == Player.STATE_READY, tracks);
             publishPlaybackTelemetry();
-            applyLutForCurrentItem();
             scheduleMpvAutoOutputEvaluation();
         }
 
@@ -7648,8 +7042,6 @@ public class PlayerManager implements ParseCallback {
             PlaybackTrace.log("playback-error", playbackTrace.current(), "%s action=%s player=%d decode=%d", failure.logSummary(), action, playerType, engine.getDecode());
             if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "error code=%d errorType=%s action=%s retry=%d causeTypes=%s", e.errorCode, e.getClass().getSimpleName(), action, retry, causeChain(e));
             LocalProxyDebug.dumpIfLocalFailure(spec == null ? null : spec.getUrl(), e);
-            if (retryLutFailure(e)) return;
-            if (retryLutWarmupByRefresh(action, e)) return;
             boolean decoderRuntimeObserved = action == PlayerEngine.ErrorAction.DECODE
                     && engine instanceof ExoPlayerEngine exo
                     && exo.observeDecoderRuntimeFailure(e);
@@ -7860,7 +7252,6 @@ public class PlayerManager implements ParseCallback {
             }
             try {
                 setDanmakus(recovery.target().getDanmakus());
-                waitingLutBeforePlay = false;
                 applySubtitleStyle();
                 engine.start(
                         recovery.target().checkUa(),
@@ -7901,7 +7292,6 @@ public class PlayerManager implements ParseCallback {
         boolean repeat = isRepeatOne();
         boolean wasPlayWhenReady = player.getPlayWhenReady();
         App.removeCallbacks(runnable);
-        resetLutRuntimeState("hard_decode_switch_retry", true);
         engine.release();
         engine = buildEngine(playerType, PlayerEngine.HARD);
         player = engine.getPlayer();
@@ -7915,7 +7305,6 @@ public class PlayerManager implements ParseCallback {
             if (SpiderDebug.isEnabled()) SpiderDebug.log("player", "hard decode switch retry start position=%d", position);
             setDanmakus(target.getDanmakus());
             initTrack = false;
-            waitingLutBeforePlay = false;
             applySubtitleStyle();
             engine.start(target.checkUa(), position, wasPlayWhenReady);
             scheduleMpvAutoOutputEvaluation();
@@ -7946,7 +7335,6 @@ public class PlayerManager implements ParseCallback {
             if (seq != prepareSeq || spec != target || engine != exo || player == null) return;
             if (SpiderDebug.isEnabled()) SpiderDebug.log("exo-tunnel", "fallback start position=%d", position);
             setDanmakus(target.getDanmakus());
-            waitingLutBeforePlay = false;
             applySubtitleStyle();
             engine.start(target.checkUa(), position, wasPlayWhenReady);
             if (speed != 1f) setSpeed(speed);
@@ -8001,7 +7389,6 @@ public class PlayerManager implements ParseCallback {
                         position);
             }
             setDanmakus(target.getDanmakus());
-            waitingLutBeforePlay = false;
             applySubtitleStyle();
             engine.start(target.checkUa(), position, wasPlayWhenReady);
             if (speed != 1f) setSpeed(speed);
@@ -8039,7 +7426,6 @@ public class PlayerManager implements ParseCallback {
         App.post(() -> {
             if (seq != prepareSeq || spec != target || engine != exo || player == null) return;
             setDanmakus(target.getDanmakus());
-            waitingLutBeforePlay = false;
             applySubtitleStyle();
             engine.start(target.checkUa(), position, wasPlayWhenReady);
             if (speed != 1f) setSpeed(speed);
@@ -8053,22 +7439,6 @@ public class PlayerManager implements ParseCallback {
                         position);
             }
         }, EXO_DV7_FIRST_FRAME_FALLBACK_DELAY_MS);
-        return true;
-    }
-
-    private boolean retryLutFailure(PlaybackException e) {
-        if (!LutSetting.isEnabled()) return false;
-        if (e.errorCode != PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED && e.errorCode != PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSOR_INIT_FAILED) return false;
-        App.removeCallbacks(runnable);
-        LutSetting.select(null);
-        lutAppliedForItem = true;
-        lutApplyInProgress = false;
-        pendingLutPreview = false;
-        lutWarmupReloadPreviewPending = false;
-        clearVideoEffects("lut_error_retry");
-        Notify.show(R.string.lut_apply_failed);
-        if (SpiderDebug.isEnabled()) SpiderDebug.log("lut", "disable and retry after frame processing error code=%d spec=%s cause=%s", e.errorCode, debugSpec(), causeChain(e));
-        if (spec != null) setMediaItem();
         return true;
     }
 

@@ -1,0 +1,6 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle"><solid android:color="#101727"/></shape>
+    </item>
+    <item android:width="260dp" android:height="146dp" android:gravity="center" android:drawable="@drawable/jktv_banner"/>
+</layer-list>

@@ -32,7 +32,7 @@
             android:layout_width="46dp"
             android:layout_height="46dp"
             android:background="@drawable/selector_dialog_step_button"
-            android:contentDescription="@string/lut_close"
+            android:contentDescription="@string/dialog_close"
             android:focusable="true"
             android:nextFocusDown="@id/stableItem"
             android:padding="10dp"

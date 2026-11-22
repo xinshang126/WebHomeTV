@@ -2,12 +2,14 @@ package com.fongmi.android.tv.server.process;
 
 import android.text.TextUtils;
 
+import com.fongmi.android.tv.utils.Util;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.remote.RemoteAgent;
 import com.fongmi.android.tv.remote.RemoteModels.ServerCapabilities;
 import com.fongmi.android.tv.remote.RemoteModels.RemoteProfile;
 import com.fongmi.android.tv.remote.RemoteStore;
 import com.fongmi.android.tv.remote.RemoteTokens;
+import com.fongmi.android.tv.server.Nano;
 import com.fongmi.android.tv.server.impl.Process;
 import com.fongmi.android.tv.ui.dialog.RemoteTrustDialog;
 import com.fongmi.android.tv.utils.Notify;
@@ -31,6 +33,7 @@ public class RemoteTrustSetup implements Process {
 
     @Override
     public Response doResponse(IHTTPSession session, String url, Map<String, String> files) {
+        if (Util.isLeanback()) return Nano.error(Response.Status.NOT_FOUND, "Not found");
         if (session.getMethod() == NanoHTTPD.Method.POST) return save(session.getParms());
         return page("");
     }

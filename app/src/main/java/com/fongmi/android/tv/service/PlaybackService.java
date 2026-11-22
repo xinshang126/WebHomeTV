@@ -536,11 +536,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     }
 
     @Override
-    public void onPlayerRenderRequired() {
-        playerCallbacks.forEach(PlayerCallback::onPlayerRenderRequired);
-    }
-
-    @Override
     public void onPlayerOutputPending() {
         playerCallbacks.forEach(PlayerCallback::onPlayerOutputPending);
     }
@@ -651,9 +646,6 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         }
 
         default void onReload(String msg) {
-        }
-
-        default void onPlayerRenderRequired() {
         }
 
         default void onPlayerOutputPending() {

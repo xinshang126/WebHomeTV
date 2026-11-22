@@ -3,6 +3,7 @@ package com.fongmi.android.tv.playback;
 import android.content.Context;
 
 import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.utils.Util;
 import com.github.catvod.utils.Prefers;
 
 public final class ViewingRecordSyncStore {
@@ -14,7 +15,7 @@ public final class ViewingRecordSyncStore {
     }
 
     public static boolean isEnabled() {
-        return Prefers.getBoolean(KEY_ENABLED, true);
+        return !Util.isLeanback() && Prefers.getBoolean(KEY_ENABLED, true);
     }
 
     public static void setEnabled(boolean enabled) {
@@ -22,7 +23,7 @@ public final class ViewingRecordSyncStore {
     }
 
     public static boolean isLocalWriteEnabled() {
-        return Prefers.getBoolean(KEY_LOCAL_WRITE, false);
+        return !Util.isLeanback() && Prefers.getBoolean(KEY_LOCAL_WRITE, false);
     }
 
     public static void setLocalWriteEnabled(boolean enabled) {

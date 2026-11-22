@@ -3,6 +3,7 @@ package com.fongmi.android.tv.remote;
 import android.content.Context;
 import android.text.TextUtils;
 
+import com.fongmi.android.tv.utils.Util;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.remote.RemoteModels.ClaimResponse;
@@ -363,6 +364,7 @@ public final class RemoteStore {
     }
 
     static boolean shouldStart(RemoteProfile profile) {
+        if (Util.isLeanback()) return false;
         if (profile == null || TextUtils.isEmpty(profile.serverOrigin)) return false;
         ensureProfile(profile);
         return profile.enabled;

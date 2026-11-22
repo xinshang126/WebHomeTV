@@ -52,7 +52,6 @@ import com.fongmi.android.tv.player.cache.DiskCacheCapacityPolicy;
 import com.fongmi.android.tv.player.cache.PlaybackDiskBufferStore;
 import com.fongmi.android.tv.player.engine.PlayerCacheState;
 import com.fongmi.android.tv.player.iso.IsoSessionManager;
-import com.fongmi.android.tv.player.lut.MpvLutShader;
 import com.fongmi.android.tv.player.mpv.MpvDirectAudioPolicy;
 import com.fongmi.android.tv.player.mpv.MpvConfigStore;
 import com.fongmi.android.tv.player.mpv.MpvNetworkRecoveryPolicy;
@@ -224,7 +223,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private Surface attachedOsdSurface;
     private Surface lastFrameRateSurface;
     private Object videoOutput;
-    private MpvLutShader lutShader;
     private String currentPlayableUri;
     private volatile String playbackTraceId = PlaybackTrace.NONE;
     private volatile PlaybackResourceClassifier.Classification resourceClassification;
@@ -234,7 +232,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
     private boolean discNavigationActive;
     private boolean isoTrackListDumped;
     private long isoMetadataListenerSessionId = -1;
-    private String appliedLutShaderPath;
     private PlaybackParameters playbackParameters;
     private PlaybackException playerError;
     private Tracks currentTracks;
@@ -960,19 +957,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         }
     }
 
-    public void setLutShader(@Nullable MpvLutShader shader) {
-        lutShader = shader;
-        applyShaderPipeline(false);
-    }
-
-    public void setLutPreviewProgress(float progress) {
-        if (!initialized || lutShader == null || !lutShader.isPreview()) return;
-        float value = Math.max(0f, Math.min(1f, progress));
-        safeCommand(new String[]{
-                "change-list", "glsl-shader-opts", "append",
-                lutShader.getPreviewOptionKey() + "=" + String.format(Locale.US, "%.5f", value)});
-    }
-
     public AutoCacheBaselineResult applyAutoCacheBaseline(long forwardBytes, long backBytes) {
         if (!autoCacheBaselineState.stage(
                 config.performanceOptionsPriority(), forwardBytes, backBytes)) {
@@ -1301,8 +1285,7 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
                 TextUtils.isEmpty(audioDevice) ? "" : "device " + shortText(audioDevice, 32),
                 formatAvSync(),
                 formatDisplayFps(),
-                formatDisplaySync(),
-                formatShader());
+                formatDisplaySync());
     }
 
     /** Whole-device GPU sampling is owned by the panel's background resource monitor. */
@@ -1646,7 +1629,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             MpvNetworkRecoveryPolicy.Decision recovery = MpvNetworkRecoveryPolicy.resolve(currentPlayableUri);
             PlaybackTrace.log("mpv", playbackTraceId, "network recovery route=%s routeOwner=%s evidence=%s confidence=%s observedLeg=%s upstreamVisibility=%s controlScope=%s recoveryBoundary=%s policyKnown=%s nativeRemote=%s appOverlay=%s", recovery.route(), recovery.routeOwner(), recovery.routeEvidence(), recovery.routeConfidence(), recovery.observedLeg(), recovery.upstreamVisibility(), recovery.controlScope(), recovery.recoveryBoundary(), recovery.upstreamRecoveryPolicyKnown(), recovery.nativeRemoteRecovery(), recovery.appReconnectOverlay());
             if (!mediaReplacementCoordinator.isCurrent(generation)) return;
-            applyShaderPipeline(true);
             Log.d(TAG, "load scheme=" + safeScheme(currentPlayableUri) + " urlLen=" + (currentPlayableUri == null ? 0 : currentPlayableUri.length()) + " hls=" + currentLikelyHls + " dash=" + currentLikelyDash);
             PlaybackTrace.log("mpv", playbackTraceId, "load scheme=%s urlLen=%d hls=%s dash=%s surface=%s attached=%s hwdec=%s vo=%s gpuContext=%s gpuApi=%s", safeScheme(currentPlayableUri), currentPlayableUri == null ? 0 : currentPlayableUri.length(), currentLikelyHls, currentLikelyDash, surface != null && surface.isValid(), surfaceAttached, config.hwdec(), config.vo(), config.gpuContext(), config.gpuApi());
             if (deferLoadUntilSurfaceReady(generation)) return;
@@ -1742,7 +1724,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
             MPVLib.addObserver(this);
             MPVLib.addLogObserver(this);
             applyPostInitOptions();
-            applyShaderPipeline(true);
             observeProperties();
             syncDiagnosticLogLevel();
         }
@@ -5518,10 +5499,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         return cachedDisplaySyncActive ? "display-sync 开" : "";
     }
 
-    private String formatShader() {
-        return lutShader == null ? "" : "shader 开";
-    }
-
     private String formatHz(double value) {
         if (value <= 0) return "-";
         double rounded = Math.rint(value);
@@ -5630,7 +5607,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         parts.add("audio-decoder=" + cachedAudioDecoder);
         parts.add("hwdec=" + cachedHwdecCurrent);
         parts.add("vo=" + cachedCurrentVo);
-        parts.add("shader=" + (lutShader == null ? "-" : lutShader.diagnostics()));
         parts.add("end-file=" + endFileReasonName(lastEndFileReason) + "/" + mpvErrorName(lastEndFileError) + "(" + lastEndFileError + ")");
         if (!TextUtils.isEmpty(lastEndFileErrorText)) parts.add("end-file-text=" + MpvDiagnosticsPolicy.redactSensitive(lastEndFileErrorText));
         if (currentLikelyHls) parts.add("hls-proxy=" + hlsProxy.diagnostics());
@@ -5641,24 +5617,6 @@ public final class MpvPlayer extends SimpleBasePlayer implements MPVLib.EventObs
         if (!TextUtils.isEmpty(lastFailureLog)) return ": " + lastFailureLog;
         if (recentLogs.isEmpty()) return "";
         return ": " + recentLogs.get(recentLogs.size() - 1);
-    }
-
-    private void applyShaderPipeline(boolean force) {
-        if (!initialized) return;
-        String target = lutShader == null ? "" : lutShader.getPath();
-        if (!force && TextUtils.equals(appliedLutShaderPath, target)) return;
-        if (!TextUtils.isEmpty(appliedLutShaderPath)) {
-            String optionKey = MpvLutShader.getPreviewOptionKey(appliedLutShaderPath);
-            if (!optionKey.isEmpty()) safeCommand(new String[]{"change-list", "glsl-shader-opts", "del", optionKey});
-            safeCommand(new String[]{"change-list", "glsl-shaders", "remove", appliedLutShaderPath});
-            SpiderDebug.log("mpv", "shader remove lut=%s", appliedLutShaderPath);
-        }
-        if (!TextUtils.isEmpty(target)) {
-            if (lutShader != null && lutShader.isPreview()) setLutPreviewProgress(0f);
-            safeCommand(new String[]{"change-list", "glsl-shaders", "append", target});
-            SpiderDebug.log("mpv", "shader append lut=%s", target);
-        }
-        appliedLutShaderPath = target;
     }
 
     private void postToMain(Runnable runnable) {

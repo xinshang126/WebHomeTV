@@ -21,6 +21,7 @@ import com.fongmi.android.tv.bean.Update;
 import com.fongmi.android.tv.update.GithubProxy;
 import com.fongmi.android.tv.update.OciMirror;
 import com.fongmi.android.tv.update.UpdateSource;
+import com.fongmi.android.tv.utils.Util;
 import com.fongmi.android.tv.utils.WebViewUtil;
 import com.github.catvod.crawler.DebugLogStore;
 import com.github.catvod.crawler.SpiderDebug;
@@ -460,7 +461,7 @@ public class Setting {
     }
 
     public static boolean isDriveCheck() {
-        return Prefers.getBoolean("drive_check", true);
+        return !Util.isLeanback() && Prefers.getBoolean("drive_check", true);
     }
 
     public static void putDriveCheck(boolean driveCheck) {
@@ -476,7 +477,7 @@ public class Setting {
     }
 
     public static boolean isSiteHealthSort() {
-        return Prefers.getBoolean("site_health_sort", true);
+        return !Util.isLeanback() && Prefers.getBoolean("site_health_sort", true);
     }
 
     public static void putSiteHealthSort(boolean sort) {
@@ -484,7 +485,7 @@ public class Setting {
     }
 
     public static boolean isSiteHealthDialogSort() {
-        return Prefers.getBoolean("site_health_dialog_sort");
+        return !Util.isLeanback() && Prefers.getBoolean("site_health_dialog_sort");
     }
 
     public static void putSiteHealthDialogSort(boolean sort) {
@@ -508,7 +509,7 @@ public class Setting {
     }
 
     public static boolean isPlaybackArtworkWall() {
-        return Prefers.getBoolean("playback_artwork_wall", true);
+        return !Util.isLeanback() && Prefers.getBoolean("playback_artwork_wall", true);
     }
 
     public static void putPlaybackArtworkWall(boolean artworkWall) {
@@ -529,7 +530,7 @@ public class Setting {
     }
 
     public static int getCspWarmupMode() {
-        if (!Prefers.getBoolean("csp_warmup")) return CSP_WARMUP_DISABLED;
+        if (Util.isLeanback() || !Prefers.getBoolean("csp_warmup")) return CSP_WARMUP_DISABLED;
         return getCspWarmupSelectedMode();
     }
 

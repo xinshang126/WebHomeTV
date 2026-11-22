@@ -3,6 +3,7 @@ package com.fongmi.android.tv.ui.dialog;
 import android.app.Dialog;
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -26,11 +27,13 @@ import com.fongmi.android.tv.databinding.DialogConfigBinding;
 import com.fongmi.android.tv.event.ServerEvent;
 import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.server.Server;
+import com.fongmi.android.tv.ui.activity.FileActivity;
 import com.fongmi.android.tv.ui.custom.CustomTextListener;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.QRCode;
 import com.fongmi.android.tv.utils.ResUtil;
+import com.fongmi.android.tv.utils.VodFileSelection;
 import com.github.catvod.utils.Path;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -38,6 +41,7 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.io.File;
 import java.util.Objects;
 
 public class ConfigDialog extends BaseAlertDialog {
@@ -165,7 +169,17 @@ public class ConfigDialog extends BaseAlertDialog {
     }
 
     private void onChoose(View view) {
-        FileChooser.from(launcher).show();
+        if (type == 0) {
+            try {
+                launcher.launch(new Intent(requireContext(), FileActivity.class)
+                        .putExtra(FileActivity.EXTRA_VOD_CONFIG, true));
+            } catch (RuntimeException unavailable) {
+                Notify.show(R.string.jktv_picker_system_missing);
+                binding.text.requestFocus();
+            }
+        } else {
+            FileChooser.from(launcher).show();
+        }
     }
 
     private void detect(String s) {
@@ -238,8 +252,22 @@ public class ConfigDialog extends BaseAlertDialog {
 
     private final ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
+        if (!isAdded() || binding == null) return;
         FragmentActivity activity = requireActivity();
-        String path = Objects.toString(FileChooser.getPathFromUri(result.getData().getData()), "");
+        Uri selected = result.getData().getData();
+        if (type == 0) {
+            String path = "file".equalsIgnoreCase(selected.getScheme()) ? selected.getPath() : null;
+            if (path == null || !VodFileSelection.accepts(new File(path))) {
+                Notify.show(R.string.jktv_picker_invalid);
+                return;
+            }
+            String localPath = VodFileSelection.pathFromRoot(path, Path.rootPath());
+            binding.text.setText("file:/" + Uri.encode(localPath, "/"));
+            binding.text.setSelection(binding.text.getText().length());
+            binding.positive.requestFocus();
+            return;
+        }
+        String path = Objects.toString(FileChooser.getPathFromUri(selected), "");
         if (TextUtils.isEmpty(path)) return;
         App.post(() -> {
             if (activity.isFinishing() || activity.isDestroyed()) return;

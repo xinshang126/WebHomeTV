@@ -250,10 +250,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void onServiceConnected() {
     }
 
-    protected boolean isLutAllowed() {
-        return true;
-    }
-
     protected void onPrepare() {
     }
 
@@ -585,7 +581,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     private int getRender() {
         if (mService != null && player().isNativePlayer()) return 0;
-        if (mService != null && player().requiresTextureRenderForLut()) return PlayerSetting.RENDER_TEXTURE;
         return PlayerSetting.getRender();
     }
 
@@ -673,16 +668,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         @Override
         public void onReload(String msg) {
             if (isOwner()) PlaybackActivity.this.onReload(msg);
-        }
-
-        @Override
-        public void onPlayerRenderRequired() {
-            if (!isOwner()) return;
-            int targetRender = getRender();
-            if (render == targetRender) return;
-            if (SpiderDebug.isEnabled()) SpiderDebug.log("playback-flow", "LUT switch render from=%d to=%d", render, targetRender);
-            setRender();
-            applyResizeMode(requestedResizeMode);
         }
 
         @Override
@@ -860,7 +845,6 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         mService.setNavigationCallback(getNavigationCallback(), getPlaybackKey());
         mService.addPlayerCallback(mPlayerCallback);
         getSeekView().setProgressPlayer(player().getPlayer());
-        player().setLutAllowed(isLutAllowed());
         player().setDanmakuForeground(true);
         publishRenderTarget(getExoView().getVideoSurfaceView());
         applyExoOutputMode();

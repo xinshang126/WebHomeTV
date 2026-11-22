@@ -2,6 +2,7 @@ package com.fongmi.android.tv.ui.activity;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -42,10 +43,12 @@ import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.net.OkHttp;
+import com.github.catvod.utils.Path;
 
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -138,6 +141,11 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         if (config == null) return;
         String url = config.getUrl();
         if (!TextUtils.isEmpty(url) && url.startsWith("file")) {
+            File file = Path.local(Uri.decode(url));
+            if (config.getType() == 0 && file.isFile() && file.canRead()) {
+                load(config);
+                return;
+            }
             PermissionUtil.requestFile(this, allGranted -> load(config));
         } else {
             load(config);
