@@ -1,0 +1,35 @@
+name: Apply reviewed JKTV source changes
+
+on:
+  push:
+    branches: [jj-webhome-tv]
+    paths: ['.github/workflows/apply-jktv-source-once.yml']
+
+permissions: {}
+
+jobs:
+  apply:
+    if: github.repository == 'xinshang126/WebHomeTV' && github.ref == 'refs/heads/jj-webhome-tv'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          fetch-depth: 3
+      - name: Verify and apply only the reviewed source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 48b3afe4eda4677c5ddf93f0649b3c17c023b458
+          test "$(git rev-parse HEAD^^)" = 4e30ffaf219b1db15fe5662aeff6f9820e2b32bf
+          printf '%s  %s\n' 9eacf9f5f9c3ddb873b6e7f6e756e2cbafe4f8e19eb94c61765f3dbcc0b32e92 JKTV-4e30ffaf.patch | sha256sum -c -
+          git apply --index --check --whitespace=error JKTV-4e30ffaf.patch
+          git apply --index --whitespace=error JKTV-4e30ffaf.patch
+          git rm JKTV-4e30ffaf.patch
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement JKTV native TV configuration'
+          git push origin HEAD:refs/heads/jj-webhome-tv
