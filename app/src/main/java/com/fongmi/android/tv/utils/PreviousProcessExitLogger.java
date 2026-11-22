@@ -4,6 +4,7 @@ import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.os.Build;
+import android.util.Base64;
 
 import androidx.annotation.RequiresApi;
 
@@ -70,24 +71,33 @@ public final class PreviousProcessExitLogger {
 
     @RequiresApi(Build.VERSION_CODES.R)
     private static void captureTrace(ApplicationExitInfo exit) {
+        final int limit = 65536;
         try (InputStream input = exit.getTraceInputStream()) {
             if (input == null) {
                 DebugLogStore.event(event().unknown("traceAvailable", DiagnosticEvent.Status.UNAVAILABLE));
                 return;
             }
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            byte[] part = new byte[1024];
+            byte[] part = new byte[4096];
             int read;
-            while (bytes.size() < 8192 && (read = input.read(part, 0, Math.min(part.length, 8192 - bytes.size()))) > 0) bytes.write(part, 0, read);
-            boolean text = exit.getReason() == ApplicationExitInfo.REASON_ANR;
+            while (bytes.size() < limit && (read = input.read(part, 0, Math.min(part.length, limit - bytes.size()))) > 0) {
+                bytes.write(part, 0, read);
+            }
+            boolean anr = exit.getReason() == ApplicationExitInfo.REASON_ANR;
+            boolean nativeCrash = exit.getReason() == ApplicationExitInfo.REASON_CRASH_NATIVE;
             DebugLogStore.event(event().observed("traceAvailable", true).observed("bytes", bytes.size())
-                    .observed("format", text ? "anr-text-prefix" : "platform-trace; binary content not exported")
-                    .observed("truncated", bytes.size() == 8192));
-            if (text) {
-                String trace = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+                    .observed("format", anr ? "anr-text-prefix"
+                            : nativeCrash ? "native-tombstone-protobuf-base64-prefix" : "platform-trace-not-exported")
+                    .observed("truncated", bytes.size() == limit));
+            if (anr || nativeCrash) {
+                String trace = anr ? new String(bytes.toByteArray(), StandardCharsets.UTF_8)
+                        : Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP);
                 int chunks = (trace.length() + 999) / 1000;
-                for (int i = 0; i < chunks; i++) DebugLogStore.event(event().observed("chunk", i).observed("chunkCount", chunks)
-                        .message(trace.substring(i * 1000, Math.min(trace.length(), (i + 1) * 1000))));
+                for (int i = 0; i < chunks; i++) {
+                    DebugLogStore.event(event().observed("chunk", i).observed("chunkCount", chunks)
+                            .observed("encoding", anr ? "utf-8" : "base64")
+                            .message(trace.substring(i * 1000, Math.min(trace.length(), (i + 1) * 1000))));
+                }
             }
         } catch (Exception error) {
             DebugLogStore.event(event().unknown("traceAvailable", DiagnosticEvent.Status.READ_ERROR)

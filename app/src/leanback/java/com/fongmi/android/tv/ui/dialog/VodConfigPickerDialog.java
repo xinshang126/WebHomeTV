@@ -22,8 +22,10 @@ import com.github.catvod.crawler.SpiderDebug;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -203,21 +205,50 @@ public final class VodConfigPickerDialog {
 
     private List<Row> listFiles(File directory) {
         try {
-            File[] files = directory.listFiles();
-            if (files == null) return null;
-            Arrays.sort(files, Comparator.comparing(File::isDirectory).reversed()
-                    .thenComparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+            long started = SystemClock.elapsedRealtime();
+            String id = Integer.toHexString(directory.getAbsolutePath().hashCode());
             List<Row> result = new ArrayList<>();
-            for (File file : files) {
-                if (file.isDirectory() && file.canRead()) result.add(new Row(DIRECTORY,
-                        "📁 " + file.getName(), file, null));
-                else if (VodFileSelection.accepts(file)) result.add(new Row(FILE,
-                        "📄 " + file.getName(), file, null));
-                if (result.size() >= MAX_ROWS) break;
+            trace("folder scan start id=" + id);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                DirectoryReader.read(directory, result);
+            } else {
+                String[] names = directory.list();
+                if (names == null) return null;
+                for (String name : names) {
+                    addEntry(result, new File(directory, name));
+                    if (result.size() >= MAX_ROWS) break;
+                }
             }
+            result.sort(Comparator.comparing((Row row) -> row.kind != DIRECTORY)
+                    .thenComparing(row -> row.label, String.CASE_INSENSITIVE_ORDER));
+            trace("folder filtered id=" + id + " count=" + result.size()
+                    + " cost=" + (SystemClock.elapsedRealtime() - started) + "ms");
             return result;
-        } catch (RuntimeException unavailable) {
+        } catch (IOException | RuntimeException unavailable) {
+            trace("folder error type=" + unavailable.getClass().getSimpleName());
             return null;
+        }
+    }
+
+    private static void addEntry(List<Row> result, File file) {
+        String name = file.getName();
+        if (file.isDirectory()) {
+            if (file.canRead()) result.add(new Row(DIRECTORY, "📁 " + name, file, null));
+        } else if (name.toLowerCase(java.util.Locale.ROOT).endsWith(".json")
+                && VodFileSelection.accepts(file)) {
+            result.add(new Row(FILE, "📄 " + name, file, null));
+        }
+    }
+
+    /** Kept separate so Android 7 loads no java.nio.file classes. */
+    private static final class DirectoryReader {
+        static void read(File directory, List<Row> result) throws IOException {
+            try (DirectoryStream<Path> entries = Files.newDirectoryStream(directory.toPath())) {
+                for (Path entry : entries) {
+                    addEntry(result, entry.toFile());
+                    if (result.size() >= MAX_ROWS) break;
+                }
+            }
         }
     }
 
